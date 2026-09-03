@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>YAD Dep — Dependency &amp; Impact Simulator</title>
+<title>F.A.J.R. — Forward Assessment of Joint-node Relationships</title>
 <meta name="description" content="Upload a values workbook and a dependency workbook, visualise how codes relate, and simulate how a change to one code ripples through the others.">
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
@@ -18,14 +18,19 @@
       <path d="M10 15 L22 8 M10 17 L22 24"></path>
     </svg>
     <div class="brand-text">
-      <h1>YAD&nbsp;Dep</h1>
-      <p>Dependency &amp; impact simulator</p>
+      <h1>F.A.J.R.</h1>
+      <p>Forward Assessment of Joint-node Relationships</p>
     </div>
   </div>
+  <div class="dataset-bar" id="dataset-bar" hidden>
+    <label for="dataset-select">Dataset</label>
+    <select id="dataset-select" aria-label="Active dataset"></select>
+    <button type="button" class="btn btn-sm" id="btn-ds-rename">Rename</button>
+    <button type="button" class="btn btn-sm" id="btn-ds-remove">Remove</button>
+    <button type="button" class="btn btn-sm btn-primary" id="btn-ds-add">+ Add</button>
+  </div>
   <div class="top-actions">
-    <button type="button" class="btn" id="btn-demo">Load sample data</button>
     <button type="button" class="btn" id="btn-templates">Download templates</button>
-    <button type="button" class="btn" id="btn-reset" hidden>Start over</button>
     <button type="button" class="btn icon-btn" id="btn-theme" title="Switch light / dark" aria-label="Switch light / dark">◐</button>
   </div>
 </header>
@@ -40,6 +45,12 @@
         Everything runs locally in your browser — no file ever leaves this machine.
         Accepted formats: <code>.xlsx</code>, <code>.xls</code>, <code>.csv</code>.
       </p>
+      <div class="demo-row">
+        <button type="button" class="btn" id="btn-demo">Sample · 25 codes</button>
+        <button type="button" class="btn" id="btn-demo100">Demo · 100 codes</button>
+        <button type="button" class="btn btn-quiet" id="btn-loader-cancel" hidden>Cancel</button>
+      </div>
+      <p class="muted demo-note">Or start from one of these, then add your own files at any time — datasets are kept side by side.</p>
     </div>
 
     <div class="drop-grid">
@@ -163,10 +174,12 @@
           <label class="check"><input type="checkbox" id="opt-impacted"> Impacted only</label>
           <label class="check"><input type="checkbox" id="opt-labels" checked> Descriptions</label>
           <span class="spacer"></span>
+          <button type="button" class="btn btn-sm" id="btn-reset-layout" hidden>Reset layout</button>
           <button type="button" class="btn btn-sm" id="btn-fit">Fit</button>
           <button type="button" class="btn btn-sm" id="btn-zoom-in" aria-label="Zoom in">+</button>
           <button type="button" class="btn btn-sm" id="btn-zoom-out" aria-label="Zoom out">−</button>
         </div>
+        <div class="view-chips" id="view-chips" hidden></div>
         <div class="graph-wrap">
           <svg id="graph" role="img" aria-label="Dependency graph"></svg>
           <div class="graph-legend" id="graph-legend"></div>
@@ -220,6 +233,8 @@
 <script src="assets/js/engine.js"></script>
 <script src="assets/js/graph.js"></script>
 <script src="assets/js/combobox.js"></script>
+<script src="assets/js/dialog.js"></script>
+<script src="assets/js/datasets.js"></script>
 <script src="assets/js/sample.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

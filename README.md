@@ -1,4 +1,4 @@
-# YAD Dep — dependency & impact simulator
+# F.A.J.R. — Forward Assessment of Joint-node Relationships
 
 A single-page web app for exploring how a set of coded items depend on each
 other, and for answering the question *"if I change this one number, what else
@@ -19,8 +19,28 @@ To serve it over HTTP instead (any static host works — GitHub Pages, S3, nginx
 npx http-server -p 8080 .      # then visit http://localhost:8080
 ```
 
-Click **Load sample data** to explore immediately with the dataset in
-`sample-data/`, or **Download templates** to get correctly-shaped starter files.
+Two datasets are bundled, so there is something to explore before you upload
+anything:
+
+* **Sample · 25 codes** — a real-shaped export: every code carries a formula,
+  many `BCode`s are missing from the values file, and six codes form a loop.
+* **Demo · 100 codes** — a generated layered model (inputs → components →
+  assemblies → modules → products → indicators) with 241 links, weighted terms,
+  a few references outside the values file, and one deliberate feedback loop.
+
+**Download templates** gives you correctly-shaped starter files.
+
+## Working with several datasets
+
+Datasets live side by side. The switcher in the header selects the active one,
+**+ Add** loads another pair of files (or a bundled dataset), **Rename** gives it
+a meaningful name, and **Remove** deletes it — your original files are never
+touched.
+
+Each dataset keeps its own rows *and* its own hand-arranged node positions, and
+the whole set is saved in `localStorage`, so a reload picks up where you left
+off. If the browser refuses to store them — private mode, or a very large
+upload — the app says so and keeps them in memory for the session.
 
 ## The two files
 
@@ -106,7 +126,17 @@ it to the scenario) cuts the loop and makes the surrounding results exact again.
   the one you pick: it is selected, centred, and revealed even if a filter was
   hiding it.
 * **Graph** — layered left-to-right (dependencies feed the codes to their right),
-  with pan, zoom (wheel, buttons, or pinch on touch), and per-node detail. Green and red show the direction
+  with pan, zoom (wheel, buttons, or pinch on touch), and per-node detail.
+  Oversized layers wrap into sub-columns so a hundred codes still read at a
+  sensible zoom, and hovering a code lights up everything it touches.
+* **Arrange it yourself** — drag any code to reposition it. Moved codes are
+  pinned (marked with a dot), keep their place through filtering and
+  re-rendering, and are remembered with the dataset. *Reset layout* returns
+  everything to the automatic arrangement, and *Unpin* releases one code.
+* **Isolate** — narrow the map to one code and its dependency chain, at direct
+  links, two hops, or the full chain. *Hide* drops individual codes out of the
+  view instead. Both show as chips above the graph and are one click to undo,
+  and isolation overrides the toolbar filters so nothing relevant stays hidden. Green and red show the direction
   of change, blue traces the live propagation path, dashed links are subtracted
   terms, and amber marks circular groups. External codes are hidden by default;
   the toolbar checkbox brings them in.
@@ -133,11 +163,13 @@ assets/css/style.css    styling, light and dark themes
 assets/js/xlsx-lite.js  self-contained .xlsx reader (ZIP + XML, no dependencies)
 assets/js/parse.js      file reading, header matching, CSV parsing
 assets/js/engine.js     model building, formula evaluation, scenario solving
-assets/js/graph.js      layered SVG graph with pan/zoom/pinch
+assets/js/graph.js      layered SVG graph: pan, zoom, pinch, drag, isolate
 assets/js/combobox.js   searchable code picker used by both dropdowns
+assets/js/datasets.js   the dataset store and its localStorage persistence
+assets/js/dialog.js     small modal prompts for renaming and removing
 assets/js/app.js        UI wiring
 assets/js/sample.js     embedded demo dataset
-sample-data/            the same demo data as CSV files
+sample-data/            both bundled datasets as CSV files
 ```
 
 ## On phones and tablets

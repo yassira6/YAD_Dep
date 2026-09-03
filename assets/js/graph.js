@@ -35,7 +35,7 @@
   Graph.prototype.bind = function () {
     var self = this, svg = this.svg;
     var pointers = new Map();      // active touches / buttons
-    var drag = null, pinch = null, listening = false;
+    var drag = null, pinch = null, nodeDrag = null, listening = false;
 
     svg.addEventListener('wheel', function (e) {
       e.preventDefault();
@@ -73,8 +73,20 @@
     svg.addEventListener('pointerdown', function (e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointers.size === 2) { drag = null; pinch = mid(); svg.classList.add('is-panning'); }
-      else if (pointers.size === 1) { drag = { x: e.clientX, y: e.clientY, moved: false }; }
+
+      if (pointers.size === 2) {                     // a second finger turns it into a pinch
+        drag = null; nodeDrag = null; pinch = mid(); svg.classList.add('is-panning');
+      } else if (pointers.size === 1) {
+        var g = e.target && e.target.closest ? e.target.closest('.node') : null;
+        var item = g && self.layout ? self.layout.byCode[g.getAttribute('data-code')] : null;
+        if (item) {
+          // dragging a node moves the node; dragging the background pans the map
+          nodeDrag = { item: item, g: g, sx: e.clientX, sy: e.clientY, ox: item.x, oy: item.y, moved: false };
+          g.classList.add('is-dragging');
+        } else {
+          drag = { x: e.clientX, y: e.clientY, moved: false };
+        }
+      }
       listen();
     });
 
@@ -93,6 +105,19 @@
         return;
       }
 
+      if (nodeDrag) {
+        var ndx = (e.clientX - nodeDrag.sx) / self.k, ndy = (e.clientY - nodeDrag.sy) / self.k;
+        if (!nodeDrag.moved && Math.abs(e.clientX - nodeDrag.sx) + Math.abs(e.clientY - nodeDrag.sy) > 3) {
+          nodeDrag.moved = true;
+        }
+        if (!nodeDrag.moved) return;
+        nodeDrag.item.x = nodeDrag.ox + ndx;
+        nodeDrag.item.y = nodeDrag.oy + ndy;
+        nodeDrag.g.setAttribute('transform', 'translate(' + nodeDrag.item.x + ',' + nodeDrag.item.y + ')');
+        self.refreshEdges(nodeDrag.item.code);
+        return;
+      }
+
       if (!drag) return;
       var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 3) { drag.moved = true; svg.classList.add('is-panning'); }
@@ -106,6 +131,20 @@
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = null;
       if (pointers.size > 0) return;
+
+      if (nodeDrag) {
+        nodeDrag.g.classList.remove('is-dragging');
+        if (nodeDrag.moved) {
+          self.suppressUntil = Date.now() + 250;   // a drag must not also select the node
+          nodeDrag.g.classList.add('is-pinned');
+          if (self.handlers.onMoveNode) {
+            self.handlers.onMoveNode(nodeDrag.item.code, nodeDrag.item.x, nodeDrag.item.y);
+          }
+        }
+        nodeDrag = null;
+        unlisten();
+        return;
+      }
 
       var moved = drag && drag.moved;
       drag = null;
@@ -155,7 +194,7 @@
 
   /* ── layout ────────────────────────────────────────────────────────── */
 
-  function computeLayout(model, visible, showDesc) {
+  function computeLayout(model, visible, showDesc, positions, aspect) {
     var h = showDesc ? 50 : 38;
 
     /* Group by rank, then renumber the ranks that are actually in use. Filtering
@@ -199,14 +238,31 @@
       });
     }
 
-    var nodes = [], byCode = {};
+    /* A layer with dozens of codes in it would make one very tall column and a
+       graph that only reads at 30% zoom. Split oversized layers into adjacent
+       sub-columns, choosing the split that brings the drawing closest to the
+       shape of the viewport. */
     var step = h + GAP_Y;
+    var cap = chooseCap(layers, step, NODE_W + GAP_X, aspect);
+    var columns = [];
+    layers.forEach(function (layer) {
+      var splits = Math.max(1, Math.ceil(layer.length / cap));
+      var per = Math.ceil(layer.length / splits);
+      for (var i = 0; i < layer.length; i += per) columns.push(layer.slice(i, i + per));
+      if (!layer.length) columns.push([]);
+    });
+    layers = columns;
+
+    var nodes = [], byCode = {};
+    positions = positions || {};
     var maxCount = layers.reduce(function (m, l) { return Math.max(m, l.length); }, 1);
     var fullH = maxCount * step;
     layers.forEach(function (layer, col) {
       var offset = (fullH - layer.length * step) / 2;
       layer.forEach(function (code, i) {
         var item = { code: code, x: col * (NODE_W + GAP_X), y: offset + i * step, w: NODE_W, h: h };
+        var manual = positions[code];          // a node the user has dragged stays put
+        if (manual) { item.x = manual.x; item.y = manual.y; item.pinned = true; }
         nodes.push(item); byCode[code] = item;
       });
     });
@@ -221,6 +277,29 @@
       : { x: 0, y: 0, w: 1, h: 1 };
 
     return { nodes: nodes, byCode: byCode, bounds: bounds, layers: layers, nodeH: h };
+  }
+
+  /* Pick how many nodes may stack in one column: the split whose overall
+     width-to-height ratio best matches the space available. */
+  function chooseCap(layers, step, pitch, aspect) {
+    var target = Math.min(2.6, Math.max(0.6, aspect || 1.5));
+    var maxLen = layers.reduce(function (m, l) { return Math.max(m, l.length); }, 1);
+    if (maxLen <= 8) return maxLen;
+
+    var best = maxLen, bestScore = Infinity;
+    for (var cap = 6; cap <= maxLen; cap++) {
+      var cols = 0, tallest = 0;
+      for (var i = 0; i < layers.length; i++) {
+        var len = layers[i].length;
+        var splits = Math.max(1, Math.ceil(len / cap));
+        cols += splits;
+        tallest = Math.max(tallest, Math.ceil(len / splits));
+      }
+      var ratio = (cols * pitch) / Math.max(1, tallest * step);
+      var score = Math.abs(Math.log(ratio / target));
+      if (score < bestScore) { bestScore = score; best = cap; }
+    }
+    return best;
   }
 
   function edgePath(a, b) {
@@ -248,18 +327,27 @@
     var visible = [];
 
     model.nodes.forEach(function (n, code) {
-      if (!state.showExternals && n.external) return;
-      if (state.impactedOnly && result) {
-        var row = result.byCode[code];
-        if (!row || (!row.changed && !row.overridden)) return;
+      if (state.hidden && state.hidden.has(code)) return;
+      if (state.isolate) {
+        // an explicit isolation wins over the toolbar filters
+        if (!state.isolate.has(code)) return;
+      } else {
+        if (!state.showExternals && n.external) return;
+        if (state.impactedOnly && result) {
+          var row = result.byCode[code];
+          if (!row || (!row.changed && !row.overridden)) return;
+        }
       }
       visible.push(code);
     });
     var visibleSet = new Set(visible);
 
-    var layout = computeLayout(model, visible, state.showDescriptions);
+    var box = this.svg.getBoundingClientRect();
+    var layout = computeLayout(model, visible, state.showDescriptions, state.positions,
+                               box.height > 0 ? box.width / box.height : 1.5);
     this.layout = layout;
 
+    this.edgeIndex = {};
     while (this.edgeLayer.firstChild) this.edgeLayer.removeChild(this.edgeLayer.firstChild);
     while (this.nodeLayer.firstChild) this.nodeLayer.removeChild(this.nodeLayer.firstChild);
 
@@ -303,6 +391,9 @@
         var marker = live ? 'edge-arrow-live' : (cyc ? 'edge-arrow-cycle' : 'edge-arrow');
         var p = el('path', { class: cls, d: edgePath(source, target), 'marker-end': 'url(#' + marker + ')' }, self.edgeLayer);
         seen[t.code].el = p;
+        var link = { el: p, from: t.code, to: code };
+        (self.edgeIndex[code] || (self.edgeIndex[code] = [])).push(link);
+        (self.edgeIndex[t.code] || (self.edgeIndex[t.code] = [])).push(link);
       });
       Object.keys(seen).forEach(function (src) {
         if (!seen[src].el) return;
@@ -326,8 +417,11 @@
       if (state.hits && state.hits.has(item.code)) cls += ' is-hit';
       if (focusSet && !focusSet.has(item.code)) cls += ' dim';
 
-      var g = el('g', { class: cls, transform: 'translate(' + item.x + ',' + item.y + ')' }, self.nodeLayer);
+      if (item.pinned) cls += ' is-pinned';
+      var g = el('g', { class: cls, 'data-code': item.code,
+                        transform: 'translate(' + item.x + ',' + item.y + ')' }, self.nodeLayer);
       el('rect', { class: 'n-box', width: item.w, height: item.h, rx: 7 }, g);
+      if (item.pinned) el('circle', { class: 'n-pin', cx: item.w - 7, cy: 7, r: 2.6 }, g);
       el('text', { class: 'n-label', x: 9, y: 15 }, g).textContent = trim(item.code, 14);
 
       var shown = row ? row.simulated : n.base;
@@ -354,14 +448,39 @@
 
       g.addEventListener('click', function (e) {
         e.stopPropagation();
+        // A drag ends with the pointer over the node, so a click follows it.
+        // Time-box the suppression: a flag left standing would swallow the next
+        // genuine click instead.
+        if (self.suppressUntil && Date.now() < self.suppressUntil) return;
         if (self.handlers.onSelect) self.handlers.onSelect(item.code);
       });
+      g.addEventListener('pointerenter', function () { self.hover(item.code, true); });
+      g.addEventListener('pointerleave', function () { self.hover(item.code, false); });
       g.addEventListener('dblclick', function (e) {
         e.stopPropagation();
         if (self.handlers.onActivate) self.handlers.onActivate(item.code);
       });
     });
   };
+
+  Graph.prototype.hover = function (code, on) {
+    var links = this.edgeIndex && this.edgeIndex[code];
+    if (links) links.forEach(function (l) { l.el.classList.toggle('is-hover', on); });
+    var g = this.nodeLayer.querySelector('.node[data-code="' + cssEscape(code) + '"]');
+    if (g) g.classList.toggle('is-hover', on);
+  };
+
+  Graph.prototype.refreshEdges = function (code) {
+    var layout = this.layout;
+    var links = this.edgeIndex && this.edgeIndex[code];
+    if (!links || !layout) return;
+    links.forEach(function (l) {
+      var a = layout.byCode[l.from], b = layout.byCode[l.to];
+      if (a && b) l.el.setAttribute('d', edgePath(a, b));
+    });
+  };
+
+  function cssEscape(v) { return String(v).replace(/["\\]/g, '\\$&'); }
 
   global.YAD = global.YAD || {};
   global.YAD.Graph = Graph;

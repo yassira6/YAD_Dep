@@ -26,6 +26,9 @@
 }
 
 * { box-sizing:border-box; }
+/* Class-level display rules would otherwise beat the browser's [hidden] rule,
+   leaving elements toggled through the hidden attribute on screen. */
+[hidden] { display:none !important; }
 html,body { height:100%; }
 body {
   margin:0; background:var(--bg); color:var(--text);
@@ -302,6 +305,61 @@ main { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .combo-empty { padding:.5rem .55rem; font-size:12.5px; color:var(--text-faint); }
 
+/* ── dataset switcher ───────────────────────────────────────────────── */
+.dataset-bar { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; }
+.dataset-bar label { font-size:11px; font-weight:700; letter-spacing:.05em;
+                     text-transform:uppercase; color:var(--text-faint); }
+.dataset-bar select {
+  font:inherit; font-size:13px; font-weight:550; color:var(--text); background:var(--surface);
+  border:1px solid var(--line-strong); border-radius:var(--radius-sm);
+  padding:.4em .5em; max-width:260px;
+}
+.dataset-bar select:focus { outline:2px solid var(--accent-soft); border-color:var(--accent); }
+.demo-row { display:flex; gap:.5rem; justify-content:center; flex-wrap:wrap; margin-top:1rem; }
+.demo-note { font-size:12.5px; margin-top:.6rem; }
+
+/* ── view chips (isolation / hidden) ────────────────────────────────── */
+.view-chips { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;
+              padding:.5rem 1rem; background:var(--accent-soft);
+              border-bottom:1px solid var(--line); font-size:12.5px; }
+.vchip { display:inline-flex; align-items:center; gap:.4rem;
+         background:var(--surface); border:1px solid var(--accent);
+         border-radius:20px; padding:.2rem .3rem .2rem .7rem; color:var(--text); }
+.vchip strong { font-weight:650; color:var(--accent-text); }
+.vchip select { font:inherit; font-size:12px; border:1px solid var(--line-strong);
+                background:var(--surface); color:var(--text);
+                border-radius:12px; padding:.1em .35em; }
+.vchip-count { color:var(--text-dim); font-size:11.5px; }
+.vchip button { border:none; background:transparent; cursor:pointer; color:var(--text-dim);
+                font-size:15px; line-height:1; padding:.1rem .35rem; border-radius:50%; }
+.vchip button:hover { background:var(--surface-2); color:var(--down); }
+
+/* ── graph: dragging, pinning, hover ────────────────────────────────── */
+.node { cursor:grab; }
+.node.is-dragging { cursor:grabbing; }
+.node.is-dragging .n-box { stroke:var(--accent); stroke-width:2.4px; }
+.n-pin { fill:var(--accent); }
+.node.is-hover .n-box { stroke:var(--accent); stroke-width:2px; }
+.edge.is-hover { stroke:var(--accent); stroke-width:2.4px; opacity:1; }
+.nc-actions { display:flex; gap:.35rem; margin-top:.45rem; }
+.nc-actions .btn { flex:1; }
+
+/* ── modal ──────────────────────────────────────────────────────────── */
+.modal-back { position:fixed; inset:0; z-index:80; display:flex; align-items:center;
+              justify-content:center; padding:1rem; background:rgba(15,18,22,.45);
+              opacity:0; transition:opacity .14s; }
+.modal-back.is-open { opacity:1; }
+.modal { width:100%; max-width:400px; background:var(--surface); color:var(--text);
+         border:1px solid var(--line); border-radius:var(--radius);
+         box-shadow:var(--shadow); padding:1.1rem; transform:translateY(6px); transition:transform .14s; }
+.modal-back.is-open .modal { transform:none; }
+.modal h3 { font-size:16px; margin-bottom:.5rem; }
+.modal-text { font-size:13px; color:var(--text-dim); margin-bottom:.9rem; }
+.modal .field { margin-bottom:1rem; }
+.modal-actions { display:flex; gap:.5rem; justify-content:flex-end; }
+.btn-danger { background:var(--down); border-color:var(--down); color:#fff; }
+.btn-danger:hover:not(:disabled) { filter:brightness(1.08); background:var(--down); border-color:var(--down); }
+
 /* ── narrow screens ─────────────────────────────────────────────────── */
 @media (max-width:900px) {
   /* The desktop layout pins everything to the viewport height, which squeezes
@@ -335,6 +393,9 @@ main { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
 
 @media (max-width:640px) {
   .topbar { padding:.6rem .8rem; gap:.6rem; flex-wrap:wrap; }
+  .dataset-bar { order:3; width:100%; }
+  .dataset-bar select { flex:1; max-width:none; }
+  .view-chips { padding:.45rem .7rem; }
   .top-actions { gap:.4rem; }
   .top-actions .btn { padding:.45em .7em; font-size:13px; }
   .brand-text p { display:none; }

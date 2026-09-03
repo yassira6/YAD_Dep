@@ -227,7 +227,7 @@
     var mismatched = [];
     nodes.forEach(function (n) {
       if (!n.terms.length || n.external) return;
-      if (isFinite(n.residual) && Math.abs(n.residual) > 1e-9) mismatched.push(n.code);
+      if (isFinite(n.residual) && materialResidual(n)) mismatched.push(n.code);
     });
     if (mismatched.length) {
       issues.push({ severity: 'info', title: 'Declared value differs from the formula',
@@ -245,6 +245,13 @@
   }
 
   function unique(a) { return a.filter(function (v, i) { return a.indexOf(v) === i; }); }
+
+  /* Source spreadsheets round their numbers, so a residual of a few parts per
+     million is noise rather than a real disagreement with the formula. */
+  function materialResidual(node) {
+    if (!node.terms.length || !isFinite(node.residual)) return false;
+    return Math.abs(node.residual) > 1e-6 * Math.max(1, Math.abs(node.base));
+  }
 
   function statsFor(model) {
     var s = { total: 0, external: 0, withFormula: 0, leaves: 0, edges: 0, cycles: model.cycles.length, types: model.types.length };
@@ -649,6 +656,7 @@
     downstream: downstream,
     upstream: upstream,
     formulaText: formulaText,
+    materialResidual: materialResidual,
     parseOperation: parseOperation,
     num: num,
     fmtNum: fmtNum

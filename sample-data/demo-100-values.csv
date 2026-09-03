@@ -1,0 +1,101 @@
+Code,Value,Description,Type
+INP-01,1.001,Escalation rate applied to the assembly cell,Input
+INP-02,1.079,Escalation rate applied to the south plant,Input
+INP-03,404.24,Tracks scrap allowance across the south plant,Input
+INP-04,565.92,Tracks scrap allowance across the north plant,Input
+INP-05,569,Allocates logistics fee across the service network,Input
+INP-06,44.61,Drives quality margin across the south plant,Input
+INP-07,558.42,Reconciles energy draw across the packing bay,Input
+INP-08,383.03,Feeds warranty reserve across the assembly cell,Input
+INP-09,545.21,Aggregates utilisation index across the assembly cell,Input
+INP-10,247.02,Drives logistics fee across line B,Input
+INP-11,1.186,Escalation rate applied to line B,Input
+INP-12,437.16,Balances warranty reserve across the finishing stage,Input
+INP-13,586.19,Supports logistics fee across the supply chain,Input
+INP-14,117.71,Normalises material cost across the finishing stage,Input
+INP-15,1.294,Escalation rate applied to line B,Input
+INP-16,108.6,Supports energy draw across the finishing stage,Input
+INP-17,359.25,Balances downtime loss across line A,Input
+INP-18,476.9,Balances carrier spend across the north plant,Input
+INP-19,180.38,Buffers warranty reserve across the south plant,Input
+INP-20,221.74,Aggregates downtime loss across the supply chain,Input
+INP-21,75.19,Tracks utilisation index across the north plant,Input
+INP-22,503.83,Normalises logistics fee across the south plant,Input
+CMP-01,546.504,Consolidates overhead pool across line B,Component
+CMP-02,613.61,Normalises logistics fee across the north plant,Component
+CMP-03,734.8186,Reconciles capacity share across the finishing stage,Component
+CMP-04,946.734,Consolidates capacity share across the service network,Component
+CMP-05,149.753,Normalises logistics fee across the south plant,Component
+CMP-06,255.57,Consolidates energy draw across the supply chain,Component
+CMP-07,1851.34,Supports labour load across the supply chain,Component
+CMP-08,321.2199,Allocates warranty reserve across the finishing stage,Component
+CMP-09,566.6044,Supports throughput rate across the south plant,Component
+CMP-10,1207.28,Balances material cost across the packing bay,Component
+CMP-11,1581.77,Tracks capacity share across line B,Component
+CMP-12,860.34,Allocates energy draw across the finishing stage,Component
+CMP-13,-47.36174,Drives material cost across line B,Component
+CMP-14,617.54,Supports labour load across line A,Component
+CMP-15,696.0362,Feeds scrap allowance across the finishing stage,Component
+CMP-16,1167.18,Allocates overhead pool across line B,Component
+CMP-17,707.92,Buffers yield factor across the north plant,Component
+CMP-18,1024.536,Reconciles quality margin across line B,Component
+CMP-19,1222.423,Buffers scrap allowance across the finishing stage,Component
+CMP-20,279.89,Reconciles carrier spend across the supply chain,Component
+CMP-21,170.69,Regulates warranty reserve across the packing bay,Component
+CMP-22,1163.4561,Feeds material cost across the supply chain,Component
+CMP-23,99.31057,Tracks scrap allowance across line B,Component
+CMP-24,516.415979,Aggregates energy draw across the service network,Component
+CMP-25,904.68038,Aggregates scrap allowance across the south plant,Component
+CMP-26,220.2215,Buffers throughput rate across the north plant,Component
+CMP-27,1474.461,Reconciles tooling charge across the north plant,Component
+CMP-28,588.655759,Buffers warranty reserve across the assembly cell,Component
+CMP-29,-181.87418,Allocates throughput rate across the service network,Component
+CMP-30,21.8276,Feeds utilisation index across the assembly cell,Component
+ASM-01,1155.0034,Drives logistics fee across the finishing stage,Assembly
+ASM-02,2344.35188,Regulates overhead pool across line B,Assembly
+ASM-03,632.841316,Allocates downtime loss across line B,Assembly
+ASM-04,1101.44037,Tracks logistics fee across the service network,Assembly
+ASM-05,-1865.0106,Tracks energy draw across the finishing stage,Assembly
+ASM-06,608.60943,Aggregates material cost across the north plant,Assembly
+ASM-07,1645.151,Consolidates utilisation index across line A,Assembly
+ASM-08,243.650159,Consolidates throughput rate across the finishing stage,Assembly
+ASM-09,636.024919,Normalises quality margin across the supply chain,Assembly
+ASM-10,3728.911859,Buffers throughput rate across the supply chain,Assembly
+ASM-11,2486.6343,Drives material cost across the assembly cell,Assembly
+ASM-12,845.799566,Allocates warranty reserve across the finishing stage,Assembly
+ASM-13,874.16432,Aggregates overhead pool across the service network,Assembly
+ASM-14,1256.04013,Aggregates quality margin across line A,Assembly
+ASM-15,2861.772867,Reconciles scrap allowance across line A,Assembly
+ASM-16,1462.02329,Consolidates downtime loss across the north plant,Assembly
+ASM-17,130.67814,Balances utilisation index across the north plant,Assembly
+ASM-18,2109.8986,Drives overhead pool across the supply chain,Assembly
+ASM-19,1882.98126,Aggregates yield factor across the assembly cell,Assembly
+ASM-20,1881.133171,Aggregates tooling charge across line B,Assembly
+ASM-21,3.7239,Allocates energy draw across the finishing stage,Assembly
+ASM-22,2088.540694,Buffers tooling charge across the south plant,Assembly
+ASM-23,499.14226,Buffers throughput rate across the supply chain,Assembly
+ASM-24,237.169136,Allocates carrier spend across the assembly cell,Assembly
+MOD-01,1209.005579,Reconciles capacity share across line B,Module
+MOD-02,1868.7345,Tracks material cost across line A,Module
+MOD-03,4782.372437,Drives capacity share across the service network,Module
+MOD-04,1734.281686,Balances material cost across the supply chain,Module
+MOD-05,2373.662281,Supports capacity share across the packing bay,Module
+MOD-06,3898.531751,Normalises labour load across the supply chain,Module
+MOD-07,3586.793963,Aggregates throughput rate across the service network,Module
+MOD-08,4154.606051,Reconciles logistics fee across the supply chain,Module
+MOD-09,1160.230686,Buffers quality margin across the south plant,Module
+MOD-10,3526.284171,Balances warranty reserve across the supply chain,Module
+MOD-11,1428.652153,Regulates logistics fee across the supply chain,Module
+MOD-12,-300.060471,Supports carrier spend across line B,Module
+MOD-13,4134.893601,Normalises logistics fee across the assembly cell,Module
+MOD-14,1105.16427,Consolidates warranty reserve across the service network,Module
+PRD-01,445.435349,Aggregates downtime loss across the south plant,Product
+PRD-02,4189.960017,Balances labour load across the finishing stage,Product
+PRD-03,-440.082347,Allocates downtime loss across the finishing stage,Product
+PRD-04,5887.536707,Balances downtime loss across the south plant,Product
+PRD-05,4747.024649,Drives quality margin across line A,Product
+PRD-06,5895.520436,Supports yield factor across the north plant,Product
+PRD-07,10663.161933,Regulates material cost across the assembly cell,Product
+KPI-01,1532.53952,Supports utilisation index across the packing bay,Indicator
+KPI-02,2461.578448,Drives labour load across the supply chain,Indicator
+KPI-03,5535.004826,Normalises quality margin across line B,Indicator

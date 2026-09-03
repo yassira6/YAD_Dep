@@ -2,7 +2,7 @@
 (function (global) {
   'use strict';
 
-  var E = global.YAD.engine, P = global.YAD.parse;
+  var E = global.YAD.engine, P = global.YAD.parse, DS = global.YAD.datasets;
   var fmt = E.fmtNum;
   var $ = function (id) { return document.getElementById(id); };
 
@@ -15,7 +15,8 @@
     hits: new Set(),
     sort: {},
     typeFilter: new Set(),
-    ui: { externals: false, impactedOnly: false, descriptions: true }
+    ui: { externals: false, impactedOnly: false, descriptions: true },
+    view: { isolate: null, hidden: new Set() }   // isolate: {root, depth}
   };
   var graph = null;
   var combos = {};
@@ -80,6 +81,7 @@
     status.textContent = 'Reading ' + file.name + '…';
     P.readFile(file).then(function (sheets) {
       var data = P.extract(sheets, kind);
+      data.name = file.name;
       state.files[kind] = data;
       zone.classList.add('is-ready');
       var extra = data.sheetCount > 1 ? '  ·  sheet “' + data.sheet + '”' : '';
@@ -103,40 +105,117 @@
       : 'Both files are needed before the model can be built.';
   }
 
-  function loadSample() {
+  function loadBundled(key) {
+    var spec = global.YAD.sample[key];
     try {
-      state.files.values = P.extract([{ name: 'values', rows: P.parseDelimited(global.YAD.sample.values) }], 'values');
-      state.files.deps = P.extract([{ name: 'dependencies', rows: P.parseDelimited(global.YAD.sample.deps) }], 'deps');
-      [['dz-values', 'values.csv'], ['dz-deps', 'dependencies.csv']].forEach(function (pair, i) {
-        var zone = $(pair[0]);
-        var kind = i === 0 ? 'values' : 'deps';
-        zone.classList.remove('is-bad'); zone.classList.add('is-ready');
-        zone.querySelector('[data-status]').textContent =
-          '✓ ' + pair[1] + ' (sample)\n' + state.files[kind].records.length + ' rows';
-      });
-      refreshBuildButton();
-      build();
+      var values = P.extract([{ name: 'values', rows: P.parseDelimited(spec.values) }], 'values');
+      var deps = P.extract([{ name: 'dependencies', rows: P.parseDelimited(spec.deps) }], 'deps');
+      DS.add(spec.name, values.records, deps.records);
+      openActive();
+      toast('Loaded “' + spec.name + '”.');
     } catch (err) {
-      toast('Could not load the sample data: ' + err.message);
+      toast('Could not load that dataset: ' + err.message);
     }
   }
 
-  /* ── build & render ────────────────────────────────────────────────── */
+  /* ── datasets ──────────────────────────────────────────────────────── */
 
-  function build() {
+  function renderDatasetBar() {
+    var bar = $('dataset-bar');
+    var sel = $('dataset-select');
+    var list = DS.all();
+    bar.hidden = list.length === 0;
+    if (!list.length) return;
+
+    sel.innerHTML = list.map(function (d) {
+      return '<option value="' + esc(d.id) + '"' + (d.id === DS.activeId() ? ' selected' : '') + '>' +
+             esc(d.name) + ' · ' + d.values.length + ' codes</option>';
+    }).join('');
+    $('btn-ds-remove').disabled = false;
+  }
+
+  /* Build and show whichever dataset is active. */
+  function openActive() {
+    var d = DS.active();
+    if (!d) { showLoader(); return; }
     try {
-      state.model = E.buildModel(state.files.values.records, state.files.deps.records);
+      state.model = E.buildModel(d.values, d.deps);
     } catch (err) {
-      toast('The model could not be built: ' + err.message);
+      toast('This dataset could not be built: ' + err.message);
       return;
     }
     state.overrides.clear();
     state.selected = null;
+    state.hits = new Set();
     state.typeFilter = new Set();
+    state.view = { isolate: null, hidden: new Set() };
+    state.positions = DS.positions(d.id);
 
     $('loader').hidden = true;
     $('workspace').hidden = false;
-    $('btn-reset').hidden = false;
+    renderDatasetBar();
+    afterModelBuilt();
+  }
+
+  function showLoader() {
+    $('workspace').hidden = true;
+    $('loader').hidden = false;
+    $('btn-loader-cancel').hidden = DS.count() === 0;
+    renderDatasetBar();
+    ['dz-values', 'dz-deps'].forEach(function (id) {
+      var z = $(id);
+      z.classList.remove('is-ready', 'is-bad');
+      z.querySelector('[data-status]').textContent = 'Drop a file here, or click to browse';
+    });
+    state.files = { values: null, deps: null };
+    refreshBuildButton();
+  }
+
+  function renameActive() {
+    var d = DS.active();
+    if (!d) return;
+    global.YAD.dialog.text('Rename dataset', 'Name', d.name).then(function (name) {
+      if (!name) return;
+      DS.rename(d.id, name);
+      renderDatasetBar();
+      toast('Renamed to “' + DS.active().name + '”.');
+    });
+  }
+
+  function removeActive() {
+    var d = DS.active();
+    if (!d) return;
+    global.YAD.dialog.confirm(
+      'Remove dataset',
+      '“' + d.name + '” (' + d.values.length + ' codes) will be removed from this browser. ' +
+      'Your original files are untouched.',
+      'Remove', true
+    ).then(function (yes) {
+      if (!yes) return;
+      var name = d.name;
+      DS.remove(d.id);
+      if (DS.count()) openActive(); else showLoader();
+      toast('Removed “' + name + '”.');
+    });
+  }
+
+  /* ── build & render ────────────────────────────────────────────────── */
+
+  /* Turn the two uploaded files into a new dataset, then open it. */
+  function build() {
+    if (!state.files.values || !state.files.deps) return;
+    try {
+      E.buildModel(state.files.values.records, state.files.deps.records);   // validate first
+    } catch (err) {
+      toast('The model could not be built: ' + err.message);
+      return;
+    }
+    var name = (state.files.values.name || 'Dataset').replace(/\.[^.]+$/, '');
+    DS.add(name, state.files.values.records, state.files.deps.records);
+    openActive();
+  }
+
+  function afterModelBuilt() {
 
     state.codeItems = Array.from(state.model.nodes.keys()).sort(function (a, b) {
       return String(a).localeCompare(String(b), undefined, { numeric: true });
@@ -158,12 +237,18 @@
           if (combos.sim) combos.sim.setValue(code); else $('sim-code').value = code;
           previewCode(); $('sim-value').focus();
         },
-        onBackground: function () { selectNode(null); }
+        onBackground: function () { selectNode(null); },
+        onMoveNode: function (code, x, y) {
+          DS.setPosition(DS.activeId(), code, x, y);   // state.positions is the same object
+          $('btn-reset-layout').hidden = false;
+        }
       });
     }
 
     renderTypeChips();
     renderLegend();
+    renderViewChips();
+    $('btn-reset-layout').hidden = !Object.keys(state.positions || {}).length;
     $('opt-externals-label').textContent = state.model.stats.external
       ? 'External codes (' + state.model.stats.external + ')'
       : 'External codes';
@@ -195,7 +280,10 @@
       hits: state.hits,
       showExternals: state.ui.externals,
       impactedOnly: state.ui.impactedOnly && state.overrides.size > 0,
-      showDescriptions: state.ui.descriptions
+      showDescriptions: state.ui.descriptions,
+      positions: state.positions,
+      hidden: state.view.hidden,
+      isolate: isolationSet()
     });
   }
 
@@ -543,7 +631,15 @@
       (r ? '<div style="margin-bottom:.6rem">' + flagCell(r) + '</div>' : '') +
       chips(n.deps, 'Depends on') +
       chips(n.dependents, 'Used by') +
-      '<button class="btn btn-block btn-sm" type="button" data-sim>Simulate this code</button>';
+      '<button class="btn btn-block btn-sm" type="button" data-sim>Simulate this code</button>' +
+      '<div class="nc-actions">' +
+        (state.view.isolate && state.view.isolate.root === code
+          ? '<button class="btn btn-sm" type="button" data-unisolate>Exit isolation</button>'
+          : '<button class="btn btn-sm" type="button" data-isolate>Isolate</button>') +
+        '<button class="btn btn-sm" type="button" data-hide>Hide</button>' +
+        (state.positions && state.positions[code]
+          ? '<button class="btn btn-sm" type="button" data-unpin>Unpin</button>' : '') +
+      '</div>';
 
     card.querySelector('.nc-close').addEventListener('click', function () { selectNode(null); });
     card.querySelector('[data-sim]').addEventListener('click', function () {
@@ -554,11 +650,120 @@
         if (side && side.scrollIntoView) side.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     });
+    var iso = card.querySelector('[data-isolate]');
+    if (iso) iso.addEventListener('click', function () { isolate(code, 'all'); });
+    var unIso = card.querySelector('[data-unisolate]');
+    if (unIso) unIso.addEventListener('click', clearIsolation);
+    card.querySelector('[data-hide]').addEventListener('click', function () { hideCode(code); });
+    var unpin = card.querySelector('[data-unpin]');
+    if (unpin) unpin.addEventListener('click', function () {
+      delete state.positions[code];
+      DS.clearPositions(DS.activeId());
+      Object.keys(state.positions).forEach(function (c) {
+        DS.setPosition(DS.activeId(), c, state.positions[c].x, state.positions[c].y);
+      });
+      $('btn-reset-layout').hidden = !Object.keys(state.positions).length;
+      renderGraph(); renderNodeCard();
+    });
+
     card.querySelectorAll('.nc-list li[data-code]').forEach(function (li) {
       li.addEventListener('click', function () {
         var c = li.getAttribute('data-code');
         selectNode(c); graph.centreOn(c, Math.max(graph.k, 0.9));
       });
+    });
+  }
+
+  /* Which codes an isolation shows: the chosen code plus its dependency chain,
+     either the whole ancestry and all dependants, or a fixed number of hops. */
+  function isolationSet() {
+    var iso = state.view.isolate;
+    if (!iso || !state.model || !state.model.nodes.has(iso.root)) return null;
+    var set = new Set([iso.root]);
+    if (iso.depth === 'all') {
+      E.upstream(state.model, iso.root).forEach(function (c) { set.add(c); });
+      E.downstream(state.model, iso.root).forEach(function (c) { set.add(c); });
+      return set;
+    }
+    var frontier = [iso.root];
+    for (var step = 0; step < iso.depth; step++) {
+      var next = [];
+      frontier.forEach(function (code) {
+        var n = state.model.nodes.get(code);
+        if (!n) return;
+        n.deps.concat(n.dependents).forEach(function (c) {
+          if (!set.has(c)) { set.add(c); next.push(c); }
+        });
+      });
+      frontier = next;
+    }
+    return set;
+  }
+
+  function isolate(code, depth) {
+    if (!state.model || !state.model.nodes.has(code)) return;
+    state.view.isolate = { root: code, depth: depth || 'all' };
+    state.selected = code;
+    showTab('pane-graph');
+    renderViewChips();
+    renderGraph();
+    renderNodeCard();
+    setTimeout(function () { if (graph) graph.fit(); }, 20);
+  }
+
+  function clearIsolation() {
+    state.view.isolate = null;
+    renderViewChips();
+    renderGraph();
+    renderNodeCard();
+    setTimeout(function () { if (graph) graph.fit(); }, 20);
+  }
+
+  function hideCode(code) {
+    state.view.hidden.add(code);
+    if (state.selected === code) state.selected = null;
+    renderViewChips();
+    renderGraph();
+    renderNodeCard();
+  }
+
+  function renderViewChips() {
+    var box = $('view-chips');
+    var iso = state.view.isolate;
+    var hidden = state.view.hidden;
+    if (!iso && !hidden.size) { box.hidden = true; box.innerHTML = ''; return; }
+
+    var html = '';
+    if (iso) {
+      var shown = isolationSet();
+      html += '<span class="vchip">' +
+        '<strong>Isolated:</strong> ' + esc(iso.root) +
+        ' <select data-depth aria-label="Isolation depth">' +
+          '<option value="1"' + (iso.depth === 1 ? ' selected' : '') + '>direct links</option>' +
+          '<option value="2"' + (iso.depth === 2 ? ' selected' : '') + '>2 hops</option>' +
+          '<option value="all"' + (iso.depth === 'all' ? ' selected' : '') + '>full chain</option>' +
+        '</select>' +
+        '<span class="vchip-count">' + (shown ? shown.size : 0) + ' shown</span>' +
+        '<button type="button" data-clear-iso aria-label="Exit isolation">×</button></span>';
+    }
+    if (hidden.size) {
+      html += '<span class="vchip"><strong>Hidden:</strong> ' + hidden.size +
+              ' <button type="button" data-clear-hidden aria-label="Show hidden codes">×</button></span>';
+    }
+    box.innerHTML = html;
+    box.hidden = false;
+
+    var depth = box.querySelector('[data-depth]');
+    if (depth) depth.addEventListener('change', function () {
+      var v = depth.value;
+      isolate(iso.root, v === 'all' ? 'all' : parseInt(v, 10));
+    });
+    var ci = box.querySelector('[data-clear-iso]');
+    if (ci) ci.addEventListener('click', clearIsolation);
+    var ch = box.querySelector('[data-clear-hidden]');
+    if (ch) ch.addEventListener('click', function () {
+      state.view.hidden = new Set();
+      renderViewChips(); renderGraph();
     });
   }
 
@@ -638,7 +843,7 @@
     lines.push('');
     lines.push(csvCell('Scenario: ' + (scenario.join('; ') || 'none')));
     lines.push(csvCell('Exported: ' + new Date().toISOString()));
-    download('yad-dep-simulation.csv', lines.join('\n'));
+    download('fajr-simulation.csv', lines.join('\n'));
     toast('Results exported.');
   }
 
@@ -656,8 +861,28 @@
     wireDropzone('dz-deps', 'file-deps', 'deps');
 
     $('btn-build').addEventListener('click', build);
-    $('btn-demo').addEventListener('click', loadSample);
-    $('btn-reset').addEventListener('click', function () { global.location.reload(); });
+    $('btn-demo').addEventListener('click', function () { loadBundled('sample'); });
+    $('btn-demo100').addEventListener('click', function () { loadBundled('demo'); });
+    $('btn-loader-cancel').addEventListener('click', function () {
+      if (DS.count()) openActive();
+    });
+
+    $('dataset-select').addEventListener('change', function (e) {
+      if (DS.setActive(e.target.value)) openActive();
+    });
+    $('btn-ds-rename').addEventListener('click', renameActive);
+    $('btn-ds-remove').addEventListener('click', removeActive);
+    $('btn-ds-add').addEventListener('click', showLoader);
+
+    $('btn-reset-layout').addEventListener('click', function () {
+      state.positions = {};
+      DS.clearPositions(DS.activeId());
+      $('btn-reset-layout').hidden = true;
+      renderGraph();
+      renderNodeCard();
+      setTimeout(function () { graph.fit(); }, 20);
+      toast('Layout reset.');
+    });
     $('btn-templates').addEventListener('click', function () {
       download('values-template.csv', global.YAD.sample.templates.values);
       setTimeout(function () { download('dependencies-template.csv', global.YAD.sample.templates.deps); }, 250);
@@ -716,8 +941,17 @@
     $('data-search').addEventListener('input', renderData);
 
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && state.selected) selectNode(null);
+      if (e.key !== 'Escape') return;
+      if (state.view.isolate) clearIsolation();
+      else if (state.selected) selectNode(null);
     });
+
+    if (DS.load()) {
+      openActive();
+      if (!DS.persisted()) toast('Datasets could not be saved in this browser — they will be lost on reload.', 5000);
+    } else {
+      renderDatasetBar();
+    }
 
     global.addEventListener('resize', function () {
       clearTimeout(global._fitTimer);
