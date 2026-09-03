@@ -1,0 +1,26 @@
+﻿Code,Value,Description,Type
+1,51,Controls integration point for linked entities,TypeA
+2,71,Aligns dependency structure for dependent items,TypeA
+3,62,Aligns workflow logic within the logic engine,TypeD
+4,75,Validates data linkage in the mapping layer,TypeB
+5,5,Manages transaction routing for linked entities,TypeD
+6,55,Evaluates dependency structure within the main framework,TypeD
+7,54,Processes functional behavior within the main framework,TypeD
+8,90,Maps transaction routing for linked entities,TypeC
+9,42,Validates workflow logic for structured operations,TypeD
+10,19,Tracks data linkage within the logic engine,TypeA
+11,65,Controls reference mapping in the mapping layer,TypeA
+12,56,Controls transaction routing in the mapping layer,TypeB
+13,20,Manages processing rule in the processing chain,TypeD
+14,38,Generates system mapping across related components,TypeD
+15,95,Controls system mapping within the logic engine,TypeA
+16,1,Maps system mapping in the processing chain,TypeD
+17,64,Aligns reference mapping for structured operations,TypeD
+18,46,Evaluates integration point in the mapping layer,TypeA
+19,67,Controls transaction routing within the logic engine,TypeB
+20,99,Manages data linkage in the processing chain,TypeB
+21,80,Processes dependency structure within the logic engine,TypeC
+22,7,Aligns reference mapping within the logic engine,TypeD
+23,73,Maps dependency structure within the main framework,TypeD
+24,76,Generates reference mapping across system boundaries,TypeB
+25,95,Evaluates workflow logic across related components,TypeA

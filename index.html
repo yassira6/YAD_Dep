@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YAD Dep — Dependency &amp; Impact Simulator</title>
+<meta name="description" content="Upload a values workbook and a dependency workbook, visualise how codes relate, and simulate how a change to one code ripples through the others.">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="6" cy="16" r="4"></circle>
+      <circle cx="26" cy="7" r="4"></circle>
+      <circle cx="26" cy="25" r="4"></circle>
+      <path d="M10 15 L22 8 M10 17 L22 24"></path>
+    </svg>
+    <div class="brand-text">
+      <h1>YAD&nbsp;Dep</h1>
+      <p>Dependency &amp; impact simulator</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <button type="button" class="btn" id="btn-demo">Load sample data</button>
+    <button type="button" class="btn" id="btn-templates">Download templates</button>
+    <button type="button" class="btn" id="btn-reset" hidden>Start over</button>
+    <button type="button" class="btn icon-btn" id="btn-theme" title="Switch light / dark" aria-label="Switch light / dark">◐</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ───────────────────────── Step 1 · upload ───────────────────────── -->
+  <section id="loader" class="loader">
+    <div class="loader-intro">
+      <h2>Load your two workbooks</h2>
+      <p>
+        Everything runs locally in your browser — no file ever leaves this machine.
+        Accepted formats: <code>.xlsx</code>, <code>.xls</code>, <code>.csv</code>.
+      </p>
+    </div>
+
+    <div class="drop-grid">
+      <div class="dropzone" id="dz-values" data-kind="values" tabindex="0" role="button"
+           aria-label="Upload the values workbook">
+        <input type="file" id="file-values" accept=".xlsx,.xls,.xlsm,.csv,.tsv" hidden>
+        <div class="dz-badge">File 1</div>
+        <h3>Values</h3>
+        <p class="dz-cols"><code>Code</code> · <code>Value</code> · <code>Description</code> · <code>Type</code></p>
+        <p class="dz-hint">The master record. <code>Code</code> is the primary key.</p>
+        <p class="dz-status" data-status>Drop a file here, or click to browse</p>
+      </div>
+
+      <div class="dropzone" id="dz-deps" data-kind="deps" tabindex="0" role="button"
+           aria-label="Upload the dependencies workbook">
+        <input type="file" id="file-deps" accept=".xlsx,.xls,.xlsm,.csv,.tsv" hidden>
+        <div class="dz-badge">File 2</div>
+        <h3>Dependencies</h3>
+        <p class="dz-cols"><code>Code</code> · <code>Operation</code> · <code>BCode</code></p>
+        <p class="dz-hint">One row per term. <code>BCode</code> is the foreign key into Values.</p>
+        <p class="dz-status" data-status>Drop a file here, or click to browse</p>
+      </div>
+    </div>
+
+    <div class="loader-foot">
+      <button type="button" class="btn btn-primary btn-lg" id="btn-build" disabled>Build the model</button>
+      <p class="muted" id="build-hint">Both files are needed before the model can be built.</p>
+    </div>
+
+    <details class="spec">
+      <summary>How the two files are read</summary>
+      <div class="spec-body">
+        <p>
+          Column headers are matched case-insensitively and common synonyms are accepted
+          (<code>ID</code> for <code>Code</code>, <code>Depends On</code> for <code>BCode</code>, and so on).
+          If a workbook has several sheets, the first sheet carrying the required headers is used.
+        </p>
+        <p>
+          Each row of the dependency file adds one <em>term</em> to a code's formula. Rows for the same
+          <code>Code</code> combine in file order, so
+        </p>
+        <pre>Code  Operation  BCode
+7     +          67
+7     -          6
+7     +          31</pre>
+        <p>
+          means <code>7 = +67 − 6 + 31</code> (an optional <code>Weight</code> / <code>Factor</code>
+          column, or a number written inside the operation such as <code>*0.5</code>, scales the term).
+          <code>+ − × ÷ ^ %</code> are supported, with normal arithmetic precedence.
+        </p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ───────────────────────── Step 2 · workspace ───────────────────────── -->
+  <section id="workspace" class="workspace" hidden>
+
+    <aside class="sidebar">
+      <div class="card">
+        <h3 class="card-title">Simulate a change</h3>
+        <label class="field">
+          <span>Code</span>
+          <input list="code-list" id="sim-code" placeholder="Search or pick a code" autocomplete="off">
+          <datalist id="code-list"></datalist>
+        </label>
+        <p class="code-preview" id="sim-preview">Pick a code to see its current value.</p>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Change</span>
+            <select id="sim-mode">
+              <option value="set">Set to</option>
+              <option value="delta">Adjust by</option>
+              <option value="pct">Adjust by %</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Amount</span>
+            <input type="number" id="sim-value" step="any" placeholder="0">
+          </label>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-block" id="btn-add-change">Add to scenario</button>
+
+        <div class="scenario">
+          <div class="scenario-head">
+            <h4>Scenario</h4>
+            <button type="button" class="btn btn-quiet btn-sm" id="btn-clear-scenario">Clear</button>
+          </div>
+          <ul class="scenario-list" id="scenario-list">
+            <li class="empty">No changes yet — the graph shows the baseline.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card" id="impact-summary-card" hidden>
+        <h3 class="card-title">Impact</h3>
+        <div class="stat-grid" id="impact-stats"></div>
+        <button type="button" class="btn btn-block" id="btn-export">Export results (CSV)</button>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Model</h3>
+        <div class="stat-grid" id="model-stats"></div>
+      </div>
+    </aside>
+
+    <div class="content">
+      <nav class="tabs" role="tablist">
+        <button class="tab is-active" role="tab" data-pane="pane-graph">Graph</button>
+        <button class="tab" role="tab" data-pane="pane-impact">Impact</button>
+        <button class="tab" role="tab" data-pane="pane-formulas">Formulas</button>
+        <button class="tab" role="tab" data-pane="pane-data">Data</button>
+        <button class="tab" role="tab" data-pane="pane-issues">Issues <span class="pill" id="issue-count">0</span></button>
+      </nav>
+
+      <!-- Graph -->
+      <div class="pane is-active" id="pane-graph">
+        <div class="graph-toolbar">
+          <input type="search" id="graph-search" class="input-sm" placeholder="Find a code…" autocomplete="off">
+          <label class="check"><input type="checkbox" id="opt-externals"> <span id="opt-externals-label">External codes</span></label>
+          <label class="check"><input type="checkbox" id="opt-impacted"> Impacted only</label>
+          <label class="check"><input type="checkbox" id="opt-labels" checked> Descriptions</label>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-sm" id="btn-fit">Fit</button>
+          <button type="button" class="btn btn-sm" id="btn-zoom-in" aria-label="Zoom in">+</button>
+          <button type="button" class="btn btn-sm" id="btn-zoom-out" aria-label="Zoom out">−</button>
+        </div>
+        <div class="graph-wrap">
+          <svg id="graph" role="img" aria-label="Dependency graph"></svg>
+          <div class="graph-legend" id="graph-legend"></div>
+          <div class="node-card" id="node-card" hidden></div>
+        </div>
+      </div>
+
+      <!-- Impact -->
+      <div class="pane" id="pane-impact">
+        <div class="pane-head">
+          <p class="muted" id="impact-caption">Add a change to the scenario to see how it propagates.</p>
+        </div>
+        <div class="table-wrap"><table class="grid" id="impact-table"></table></div>
+      </div>
+
+      <!-- Formulas -->
+      <div class="pane" id="pane-formulas">
+        <div class="pane-head">
+          <input type="search" id="formula-search" class="input-sm" placeholder="Filter formulas…">
+          <p class="muted">Residual = declared value − what the formula explains. It is carried through the simulation so unresolved operands stay constant.</p>
+        </div>
+        <div class="table-wrap"><table class="grid" id="formula-table"></table></div>
+      </div>
+
+      <!-- Data -->
+      <div class="pane" id="pane-data">
+        <div class="pane-head">
+          <input type="search" id="data-search" class="input-sm" placeholder="Filter codes…">
+          <div class="chips" id="type-chips"></div>
+        </div>
+        <div class="table-wrap"><table class="grid" id="data-table"></table></div>
+      </div>
+
+      <!-- Issues -->
+      <div class="pane" id="pane-issues">
+        <div class="table-wrap"><div id="issue-list" class="issue-list"></div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- .xlsx, .csv and .tsv are read by the bundled reader below — no network needed.
+     SheetJS is loaded only as an optional extra so legacy .xls files also open;
+     if it is blocked or unavailable, everything else still works. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
+        integrity="sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" async
+        onerror="window.__xlsxCdnBlocked=true"></script>
+<script src="assets/js/xlsx-lite.js"></script>
+<script src="assets/js/parse.js"></script>
+<script src="assets/js/engine.js"></script>
+<script src="assets/js/graph.js"></script>
+<script src="assets/js/sample.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
