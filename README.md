@@ -128,7 +128,10 @@ it to the scenario) cuts the loop and makes the surrounding results exact again.
 * **Graph** — layered left-to-right (dependencies feed the codes to their right),
   with pan, zoom (wheel, buttons, or pinch on touch), and per-node detail.
   Oversized layers wrap into sub-columns so a hundred codes still read at a
-  sensible zoom, and hovering a code lights up everything it touches.
+  sensible zoom, and hovering a code lights up everything it touches. Green and
+  red show the direction of change, blue traces the live propagation path,
+  dashed links are subtracted terms, and amber marks circular groups. External
+  codes are hidden by default; the toolbar checkbox brings them in.
 * **Arrange it yourself** — drag any code to reposition it. Moved codes are
   pinned (marked with a dot), keep their place through filtering and
   re-rendering, and are remembered with the dataset. *Reset layout* returns
@@ -136,10 +139,7 @@ it to the scenario) cuts the loop and makes the surrounding results exact again.
 * **Isolate** — narrow the map to one code and its dependency chain, at direct
   links, two hops, or the full chain. *Hide* drops individual codes out of the
   view instead. Both show as chips above the graph and are one click to undo,
-  and isolation overrides the toolbar filters so nothing relevant stays hidden. Green and red show the direction
-  of change, blue traces the live propagation path, dashed links are subtracted
-  terms, and amber marks circular groups. External codes are hidden by default;
-  the toolbar checkbox brings them in.
+  and isolation overrides the toolbar filters so nothing relevant stays hidden.
 * **Scenario** — pick a code from the same searchable dropdown, then stack
   several changes at once, each as *set to*, *adjust by*, or *adjust by %*.
   Choosing a code also highlights it in the graph, so you can see what it feeds
@@ -151,9 +151,47 @@ it to the scenario) cuts the loop and makes the surrounding results exact again.
   explains, and the residual.
 * **Data** — the merged dataset with dependency counts, searchable and
   filterable by type.
+* **Similar** — find codes that overlap. See *Finding overlap between codes* below.
 * **Issues** — duplicate codes, missing `BCode`s, unreadable operations,
   self-references, circular loops, and declared-vs-formula mismatches.
 * **Export** — the scenario and its results as CSV, notes included.
+
+## Finding overlap between codes
+
+"Overlap" here means shared *dependencies* — two codes that both read from the
+same inputs — not similar values. A code with a small value and a code with a
+huge one can still be a 100% match if they are built from exactly the same
+pieces.
+
+The **Similar** tab has two views:
+
+* **Overlap scan** automatically compares every code in the model against
+  every other and lists the pairs that share something, ranked by how much.
+  Each row shows two numbers, because one hides a real distinction:
+  - **Match** (Jaccard: shared ÷ everything either uses) — how alike two codes
+    are overall.
+  - **Containment** (shared ÷ the smaller code's own total) — whether one code
+    sits *entirely inside* the other. A 3-term code fully contained in a
+    30-term one scores a low match but 100% containment, and is flagged
+    `is part of` rather than buried as a weak match.
+
+  Codes whose dependency set is *exactly* identical are called out separately
+  above the table — usually worth a second look at the source data. Rows are
+  sortable, the shared codes themselves are shown as chips so you can see
+  *what* overlaps and not just *how much*, and clicking a row opens those two
+  codes in Compare.
+
+  Three bases are selectable, because they answer different questions: direct
+  dependencies (near-duplicate formulas), the full upstream chain (shared
+  foundations, however many steps back), or shared dependents (codes that feed
+  the same consumers). A dependency used by almost everything (a hub) is
+  excluded automatically — it does not distinguish anything, and would swamp
+  every row with the same match.
+
+* **Compare codes** lets you pick any number of codes by hand — search and add
+  them one at a time, up to eight — and see a match-percentage matrix between
+  every pair, plus a full breakdown of which dependency belongs to which
+  codes, with rows shared by all of them highlighted first.
 
 ## Project layout
 
@@ -164,6 +202,7 @@ assets/js/xlsx-lite.js  self-contained .xlsx reader (ZIP + XML, no dependencies)
 assets/js/parse.js      file reading, header matching, CSV parsing
 assets/js/engine.js     model building, formula evaluation, scenario solving
 assets/js/graph.js      layered SVG graph: pan, zoom, pinch, drag, isolate
+assets/js/similarity.js dependency-overlap scan and multi-code compare
 assets/js/combobox.js   searchable code picker used by both dropdowns
 assets/js/datasets.js   the dataset store and its localStorage persistence
 assets/js/dialog.js     small modal prompts for renaming and removing

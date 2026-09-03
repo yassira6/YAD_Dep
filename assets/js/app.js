@@ -2,7 +2,7 @@
 (function (global) {
   'use strict';
 
-  var E = global.YAD.engine, P = global.YAD.parse, DS = global.YAD.datasets;
+  var E = global.YAD.engine, P = global.YAD.parse, DS = global.YAD.datasets, SIM = global.YAD.similarity;
   var fmt = E.fmtNum;
   var $ = function (id) { return document.getElementById(id); };
 
@@ -16,10 +16,13 @@
     sort: {},
     typeFilter: new Set(),
     ui: { externals: false, impactedOnly: false, descriptions: true },
-    view: { isolate: null, hidden: new Set() }   // isolate: {root, depth}
+    view: { isolate: null, hidden: new Set() },  // isolate: {root, depth}
+    similar: { basis: 'deps', minShared: 2, sameTypeOnly: false, search: '' },
+    compare: { codes: [], basis: 'deps' }
   };
   var graph = null;
   var combos = {};
+  var simCache = {};   // basis -> raw YAD.similarity.scan() result, reset on every model build
 
   /* ── small helpers ─────────────────────────────────────────────────── */
 
@@ -217,6 +220,9 @@
 
   function afterModelBuilt() {
 
+    simCache = {};
+    state.compare = { codes: [], basis: state.compare.basis };
+
     state.codeItems = Array.from(state.model.nodes.keys()).sort(function (a, b) {
       return String(a).localeCompare(String(b), undefined, { numeric: true });
     }).map(function (code) {
@@ -248,6 +254,9 @@
     renderTypeChips();
     renderLegend();
     renderViewChips();
+    renderSimilar();
+    renderCompareChips();
+    renderCompareBody();
     $('btn-reset-layout').hidden = !Object.keys(state.positions || {}).length;
     $('opt-externals-label').textContent = state.model.stats.external
       ? 'External codes (' + state.model.stats.external + ')'
@@ -590,6 +599,307 @@
     }).join('');
   }
 
+  /* ── similarity: scan the whole model for overlapping codes ──────────
+     "Overlap" means shared dependencies, not similar numbers — two codes
+     that both read from the same three inputs are flagged even if their
+     resulting values are nothing alike. See assets/js/similarity.js for the
+     match (Jaccard) vs. containment distinction. */
+
+  function similarityFor(basis) {
+    if (!simCache[basis]) simCache[basis] = SIM.scan(state.model, { basis: basis, minShared: 1, limit: 4000 });
+    return simCache[basis];
+  }
+
+  function meterCell(frac, hi) {
+    var pct = Math.round(frac * 100);
+    return '<span class="sim-meter"><span class="sim-meter-track">' +
+           '<span class="sim-meter-fill' + (hi ? ' hi' : '') + '" style="width:' + pct + '%"></span></span>' +
+           '<span class="sim-meter-val">' + pct + '%</span></span>';
+  }
+
+  function overlapCell(shared) {
+    var limit = 6;
+    if (!shared.length) return '<span class="muted">—</span>';
+    var shown = shared.slice(0, limit).map(function (c) { return '<span class="dep">' + esc(c) + '</span>'; }).join('');
+    var more = shared.length > limit ? '<span class="more">+' + (shared.length - limit) + ' more</span>' : '';
+    return '<div class="sim-overlap">' + shown + more + '</div>';
+  }
+
+  function relationBadge(p) {
+    if (p.identical) return '<span class="sim-badge identical">identical</span>';
+    if (p.subset) {
+      return '<span class="sim-badge subset">' +
+             (p.onlyA === 0 ? esc(p.a) + ' is part of ' + esc(p.b) : esc(p.b) + ' is part of ' + esc(p.a)) +
+             '</span>';
+    }
+    return '';
+  }
+
+  function basisLabel(basis) {
+    return basis === 'upstream' ? 'the same full upstream chain'
+         : basis === 'dependents' ? 'exactly the same dependents'
+         : 'exactly the same direct dependencies';
+  }
+
+  function renderSimGroups(groups, basis) {
+    var box = $('sim-groups');
+    if (!groups.length) { box.innerHTML = ''; return; }
+    var label = basisLabel(basis);
+    box.innerHTML = groups.slice(0, 12).map(function (g) {
+      return '<div class="sim-group-card">' +
+        '<strong>' + g.codes.length + ' codes share ' + esc(label) + '</strong>' +
+        '<div class="codes">' + g.codes.map(function (c) { return '<span>' + esc(c) + '</span>'; }).join('') + '</div>' +
+        '<button type="button" class="btn btn-sm" data-compare-group="' + esc(g.codes.join('|')) + '">Compare these</button>' +
+      '</div>';
+    }).join('') + (groups.length > 12
+      ? '<p class="muted" style="padding:0 0 .7rem">+' + (groups.length - 12) + ' more identical groups — narrow the filters to see them.</p>'
+      : '');
+
+    box.querySelectorAll('[data-compare-group]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openCompare(btn.getAttribute('data-compare-group').split('|'));
+      });
+    });
+  }
+
+  function simSortVal(p, key) {
+    switch (key) {
+      case 'a': return p.a;
+      case 'b': return p.b;
+      case 'match': return p.jaccard;
+      case 'contain': return p.containment;
+      case 'shared': return p.sharedCount;
+      default: return 0;
+    }
+  }
+
+  function renderSimTable(pairs) {
+    var sortKey = state.sort['sim-table'];
+    var sorted = pairs;
+    if (sortKey) {
+      var dir = sortKey.dir;
+      sorted = pairs.slice().sort(function (x, y) {
+        var va = simSortVal(x, sortKey.key), vb = simSortVal(y, sortKey.key);
+        if (typeof va === 'number' && typeof vb === 'number') return dir * (va - vb);
+        return dir * String(va).localeCompare(String(vb), undefined, { numeric: true });
+      });
+    }
+    var columns = [
+      { key: 'a', label: 'Code A' },
+      { key: 'b', label: 'Code B' },
+      { key: 'match', label: 'Match' },
+      { key: 'contain', label: 'Containment' },
+      { key: 'shared', label: 'Shared' },
+      { key: 'overlap', label: 'Overlap', sortable: false },
+      { key: 'rel', label: '', sortable: false }
+    ];
+    var table = $('sim-table');
+    var head = '<thead><tr>' + columns.map(function (c) {
+      var arrow = sortKey && sortKey.key === c.key ? '<span class="arrow">' + (sortKey.dir > 0 ? '▲' : '▼') + '</span>' : '';
+      return '<th' + (c.sortable === false ? ' class="no-sort"' : ' data-key="' + c.key + '"') + '>' + esc(c.label) + arrow + '</th>';
+    }).join('') + '</tr></thead>';
+
+    var body = sorted.length
+      ? '<tbody>' + sorted.map(function (p) {
+          return '<tr class="sim-row" data-a="' + esc(p.a) + '" data-b="' + esc(p.b) + '">' +
+            '<td class="code">' + esc(p.a) + (p.nodeA.type ? ' <span class="muted">· ' + esc(p.nodeA.type) + '</span>' : '') + '</td>' +
+            '<td class="code">' + esc(p.b) + (p.nodeB.type ? ' <span class="muted">· ' + esc(p.nodeB.type) + '</span>' : '') + '</td>' +
+            '<td>' + meterCell(p.jaccard, p.jaccard >= 0.75) + '</td>' +
+            '<td>' + meterCell(p.containment, p.containment >= 0.99) + '</td>' +
+            '<td class="num">' + p.sharedCount + '</td>' +
+            '<td>' + overlapCell(p.shared) + '</td>' +
+            '<td>' + relationBadge(p) + '</td>' +
+          '</tr>';
+        }).join('') + '</tbody>'
+      : '<tbody><tr><td colspan="' + columns.length + '"><div class="empty-state">No overlapping codes match these filters.</div></td></tr></tbody>';
+
+    table.innerHTML = head + body;
+
+    table.querySelectorAll('th[data-key]').forEach(function (th) {
+      th.addEventListener('click', function () {
+        var key = th.getAttribute('data-key');
+        var cur = state.sort['sim-table'];
+        state.sort['sim-table'] = (cur && cur.key === key) ? { key: key, dir: -cur.dir } : { key: key, dir: -1 };
+        renderSimTable(pairs);
+      });
+    });
+    table.querySelectorAll('tr.sim-row').forEach(function (tr) {
+      tr.addEventListener('click', function () {
+        openCompare([tr.getAttribute('data-a'), tr.getAttribute('data-b')]);
+      });
+    });
+  }
+
+  function renderSimilar() {
+    if (!state.model) return;
+    var basis = state.similar.basis;
+    var raw = similarityFor(basis);
+    var minShared = state.similar.minShared;
+    var sameType = state.similar.sameTypeOnly;
+    var q = state.similar.search.trim().toLowerCase();
+
+    var pairs = raw.pairs.filter(function (p) {
+      if (p.sharedCount < minShared) return false;
+      if (sameType && (p.nodeA.type || '') !== (p.nodeB.type || '')) return false;
+      if (q) {
+        var hay = (p.a + ' ' + p.b + ' ' + (p.nodeA.description || '') + ' ' + (p.nodeB.description || '')).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+
+    var groups = sameType
+      ? raw.groups.filter(function (g) {
+          var t = state.model.nodes.get(g.codes[0]).type || '';
+          return g.codes.every(function (c) { return (state.model.nodes.get(c).type || '') === t; });
+        })
+      : raw.groups;
+
+    renderSimGroups(groups, basis);
+    renderSimTable(pairs);
+
+    var parts = [raw.compared + ' code' + (raw.compared === 1 ? '' : 's') + ' with dependencies compared'];
+    if (raw.hubs.length) {
+      parts.push(raw.hubs.length + ' dependenc' + (raw.hubs.length === 1 ? 'y' : 'ies') +
+                 ' used too widely to be distinguishing, excluded');
+    }
+    parts.push(pairs.length + ' of ' + raw.total + ' overlapping pair' + (raw.total === 1 ? '' : 's') + ' shown');
+    if (raw.truncated) parts.push('scan capped at ' + raw.pairs.length + ' pairs — narrow the filters for the rest');
+    $('sim-summary').textContent = parts.join(' · ');
+
+    updateSimilarPill();
+  }
+
+  function updateSimilarPill() {
+    var raw = similarityFor('deps');
+    var strong = raw.pairs.filter(function (p) { return p.sharedCount >= 2 && p.jaccard >= 0.5; }).length;
+    var pill = $('similar-count');
+    if (raw.groups.length) {
+      pill.textContent = raw.groups.length;
+      pill.title = raw.groups.length + ' group(s) of codes with identical direct dependencies';
+      pill.classList.add('hot');
+    } else {
+      pill.textContent = strong;
+      pill.title = strong + ' pair(s) with 50%+ overlap and at least 2 shared dependencies';
+      pill.classList.remove('hot');
+    }
+  }
+
+  /* ── compare: a side-by-side breakdown of any number of chosen codes ── */
+
+  function showSub(subId) {
+    var pane = $('pane-similar');
+    pane.querySelectorAll('.subtab').forEach(function (t) {
+      t.classList.toggle('is-active', t.getAttribute('data-sub') === subId);
+    });
+    pane.querySelectorAll('.sub').forEach(function (s) {
+      s.classList.toggle('is-active', s.id === subId);
+    });
+  }
+
+  function openCompare(codes) {
+    var seen = {};
+    var list = codes.filter(function (c) {
+      if (!state.model.nodes.has(c) || seen[c]) return false;
+      seen[c] = 1; return true;
+    }).slice(0, 8);
+    state.compare.codes = list;
+    showTab('pane-similar');
+    showSub('sub-compare');
+    renderCompareChips();
+    renderCompareBody();
+  }
+
+  function addCompareCode(code) {
+    if (!state.model || !state.model.nodes.has(code)) return;
+    if (state.compare.codes.indexOf(code) !== -1) { toast('“' + code + '” is already in the comparison.'); return; }
+    if (state.compare.codes.length >= 8) { toast('Up to 8 codes can be compared at once.'); return; }
+    state.compare.codes.push(code);
+    renderCompareChips();
+    renderCompareBody();
+  }
+
+  function removeCompareCode(code) {
+    var i = state.compare.codes.indexOf(code);
+    if (i === -1) return;
+    state.compare.codes.splice(i, 1);
+    renderCompareChips();
+    renderCompareBody();
+  }
+
+  function renderCompareChips() {
+    var ul = $('compare-chips');
+    if (!state.compare.codes.length) {
+      ul.innerHTML = '<li class="empty">Add two or more codes above to compare them.</li>';
+      return;
+    }
+    ul.innerHTML = state.compare.codes.map(function (code) {
+      return '<li class="compare-chip" data-code="' + esc(code) + '">' + esc(code) +
+             '<button type="button" data-remove="' + esc(code) + '" aria-label="Remove ' + esc(code) + '">×</button></li>';
+    }).join('') + (state.compare.codes.length === 1
+      ? '<li class="empty">Add at least one more code.</li>' : '');
+    ul.querySelectorAll('[data-remove]').forEach(function (btn) {
+      btn.addEventListener('click', function () { removeCompareCode(btn.getAttribute('data-remove')); });
+    });
+  }
+
+  function renderCompareBody() {
+    var box = $('compare-body');
+    if (!state.model) { box.innerHTML = ''; return; }
+    if (state.compare.codes.length < 2) {
+      box.innerHTML = '<div class="compare-hint">Pick two or more codes above to see what they share.</div>';
+      return;
+    }
+
+    var c = SIM.compare(state.model, state.compare.codes, state.compare.basis);
+    var codes = c.codes;
+
+    var summary = [
+      stat('Compared', codes.length),
+      stat('Union of deps', c.unionSize),
+      stat('Shared by all', c.common.length, c.common.length ? 'up' : ''),
+      stat('Avg. pairwise match', Math.round(c.averageMatch * 100) + '%')
+    ].join('');
+
+    var matrix = '<table class="compare-matrix"><thead><tr><th></th>' +
+      codes.map(function (b) { return '<th>' + esc(b) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      codes.map(function (a) {
+        return '<tr><th class="row-head">' + esc(a) + '</th>' + codes.map(function (b) {
+          if (a === b) return '<td class="diag">—</td>';
+          return '<td>' + Math.round(c.matrix[a][b] * 100) + '%</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table>';
+
+    var breakdownRows = c.rows.map(function (r) {
+      var cls = r.all ? 'all-share' : (r.shared ? 'some-share' : '');
+      return '<tr class="' + cls + '">' +
+        '<td class="code">' + esc(r.code) + '</td>' +
+        '<td class="wide">' + esc(r.node ? (r.node.description || '') : '') + '</td>' +
+        codes.map(function (code) {
+          var on = r.members.indexOf(code) !== -1;
+          return '<td class="member"><span class="compare-dot' + (on ? ' on' : '') + '"></span></td>';
+        }).join('') +
+        '<td class="num">' + r.count + ' / ' + codes.length + '</td>' +
+      '</tr>';
+    }).join('');
+
+    box.innerHTML =
+      '<div class="compare-summary">' + summary + '</div>' +
+      '<div class="compare-matrix-wrap">' + matrix + '</div>' +
+      '<div class="compare-breakdown-head">' +
+        '<h4>Dependency breakdown</h4>' +
+        '<div class="compare-legend">' +
+          '<span class="lg"><i style="background:var(--warn);border-color:var(--warn)"></i>shared by all</span>' +
+          '<span class="lg"><i style="background:var(--accent);border-color:var(--accent)"></i>shared by some</span>' +
+        '</div>' +
+      '</div>' +
+      (c.rows.length
+        ? '<div class="table-wrap"><table class="compare-table"><thead><tr><th>Code</th><th>Description</th>' +
+          codes.map(function (code) { return '<th class="member">' + esc(code) + '</th>'; }).join('') +
+          '<th>Shared by</th></tr></thead><tbody>' + breakdownRows + '</tbody></table></div>'
+        : '<div class="empty-state">None of these codes share any dependency — nothing in common on this basis.</div>');
+  }
+
   /* ── node card ─────────────────────────────────────────────────────── */
 
   function selectNode(code) {
@@ -919,6 +1229,17 @@
       onInput: applyGraphSearch,
       onChoose: focusCode
     });
+
+    /* Compare picker: choosing a code adds it to the comparison and clears
+       the box, ready for the next one — it is an "add" field, not a select. */
+    combos.compareAdd = new global.YAD.Combobox($('compare-add'), {
+      items: items,
+      onChoose: function (code) {
+        addCompareCode(code);
+        combos.compareAdd.setValue('');
+      }
+    });
+
     $('sim-value').addEventListener('keydown', function (e) { if (e.key === 'Enter') addChange(); });
     $('btn-clear-scenario').addEventListener('click', function () {
       if (!state.overrides.size) return;
@@ -939,6 +1260,23 @@
 
     $('formula-search').addEventListener('input', renderFormulas);
     $('data-search').addEventListener('input', renderData);
+
+    document.querySelectorAll('#pane-similar .subtab').forEach(function (t) {
+      t.addEventListener('click', function () { showSub(t.getAttribute('data-sub')); });
+    });
+    $('sim-basis').addEventListener('change', function (e) { state.similar.basis = e.target.value; renderSimilar(); });
+    $('sim-min-shared').addEventListener('change', function (e) {
+      state.similar.minShared = parseInt(e.target.value, 10); renderSimilar();
+    });
+    $('sim-same-type').addEventListener('change', function (e) {
+      state.similar.sameTypeOnly = e.target.checked; renderSimilar();
+    });
+    $('sim-search').addEventListener('input', function (e) { state.similar.search = e.target.value; renderSimilar(); });
+    $('compare-basis').addEventListener('change', function (e) { state.compare.basis = e.target.value; renderCompareBody(); });
+    $('btn-compare-clear').addEventListener('click', function () {
+      if (!state.compare.codes.length) return;
+      state.compare.codes = []; renderCompareChips(); renderCompareBody();
+    });
 
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;

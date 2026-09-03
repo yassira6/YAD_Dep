@@ -163,6 +163,7 @@
         <button class="tab" role="tab" data-pane="pane-impact">Impact</button>
         <button class="tab" role="tab" data-pane="pane-formulas">Formulas</button>
         <button class="tab" role="tab" data-pane="pane-data">Data</button>
+        <button class="tab" role="tab" data-pane="pane-similar">Similar <span class="pill" id="similar-count">0</span></button>
         <button class="tab" role="tab" data-pane="pane-issues">Issues <span class="pill" id="issue-count">0</span></button>
       </nav>
 
@@ -213,6 +214,61 @@
         <div class="table-wrap"><table class="grid" id="data-table"></table></div>
       </div>
 
+      <!-- Similar -->
+      <div class="pane" id="pane-similar">
+        <nav class="subtabs" role="tablist">
+          <button class="subtab is-active" role="tab" data-sub="sub-scan">Overlap scan</button>
+          <button class="subtab" role="tab" data-sub="sub-compare">Compare codes</button>
+        </nav>
+
+        <div class="sub is-active" id="sub-scan">
+          <div class="pane-head sim-toolbar">
+            <label class="field-inline"><span>Compare by</span>
+              <select id="sim-basis">
+                <option value="deps">Direct dependencies</option>
+                <option value="upstream">Full upstream chain</option>
+                <option value="dependents">Shared dependents</option>
+              </select>
+            </label>
+            <label class="field-inline"><span>Min. shared</span>
+              <select id="sim-min-shared">
+                <option value="1">1+</option>
+                <option value="2" selected>2+</option>
+                <option value="3">3+</option>
+                <option value="5">5+</option>
+              </select>
+            </label>
+            <label class="check"><input type="checkbox" id="sim-same-type"> Same type only</label>
+            <input id="sim-search" class="input-sm" placeholder="Filter pairs…" autocomplete="off">
+            <span class="spacer"></span>
+            <p class="muted" id="sim-summary"></p>
+          </div>
+          <div id="sim-groups"></div>
+          <div class="table-wrap"><table class="grid" id="sim-table"></table></div>
+        </div>
+
+        <div class="sub" id="sub-compare">
+          <div class="pane-head">
+            <label class="field compare-add-field">
+              <span>Add a code to compare</span>
+              <input id="compare-add" placeholder="Search codes…" autocomplete="off">
+            </label>
+            <label class="field-inline"><span>Compare by</span>
+              <select id="compare-basis">
+                <option value="deps">Direct dependencies</option>
+                <option value="upstream">Full upstream chain</option>
+                <option value="dependents">Shared dependents</option>
+              </select>
+            </label>
+            <button type="button" class="btn btn-sm btn-quiet" id="btn-compare-clear">Clear all</button>
+          </div>
+          <ul class="compare-chips" id="compare-chips">
+            <li class="empty">Add two or more codes above to compare them.</li>
+          </ul>
+          <div id="compare-body"></div>
+        </div>
+      </div>
+
       <!-- Issues -->
       <div class="pane" id="pane-issues">
         <div class="table-wrap"><div id="issue-list" class="issue-list"></div></div>
@@ -232,6 +288,7 @@
 <script src="assets/js/parse.js"></script>
 <script src="assets/js/engine.js"></script>
 <script src="assets/js/graph.js"></script>
+<script src="assets/js/similarity.js"></script>
 <script src="assets/js/combobox.js"></script>
 <script src="assets/js/dialog.js"></script>
 <script src="assets/js/datasets.js"></script>
