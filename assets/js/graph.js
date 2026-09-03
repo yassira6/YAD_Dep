@@ -33,7 +33,9 @@
   }
 
   Graph.prototype.bind = function () {
-    var self = this, svg = this.svg, drag = null;
+    var self = this, svg = this.svg;
+    var pointers = new Map();      // active touches / buttons
+    var drag = null, pinch = null, listening = false;
 
     svg.addEventListener('wheel', function (e) {
       e.preventDefault();
@@ -41,24 +43,59 @@
       self.zoomAt(e.clientX - rect.left, e.clientY - rect.top, Math.pow(0.998, e.deltaY));
     }, { passive: false });
 
+    function mid() {
+      var pts = Array.from(pointers.values());
+      var rect = svg.getBoundingClientRect();
+      return {
+        x: (pts[0].x + pts[1].x) / 2 - rect.left,
+        y: (pts[0].y + pts[1].y) / 2 - rect.top,
+        d: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+      };
+    }
+
+    function listen() {
+      if (listening) return;
+      listening = true;
+      global.addEventListener('pointermove', onMove);
+      global.addEventListener('pointerup', onUp);
+      global.addEventListener('pointercancel', onUp);
+    }
+    function unlisten() {
+      listening = false;
+      global.removeEventListener('pointermove', onMove);
+      global.removeEventListener('pointerup', onUp);
+      global.removeEventListener('pointercancel', onUp);
+    }
+
     /* Panning listens on the window rather than capturing the pointer on the
        <svg>: pointer capture would retarget the follow-up click to the <svg>,
        and node clicks would never fire. */
     svg.addEventListener('pointerdown', function (e) {
-      if (e.button !== 0) return;
-      drag = { x: e.clientX, y: e.clientY, moved: false };
-      global.addEventListener('pointermove', onMove);
-      global.addEventListener('pointerup', onUp);
-      global.addEventListener('pointercancel', onUp);
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) { drag = null; pinch = mid(); svg.classList.add('is-panning'); }
+      else if (pointers.size === 1) { drag = { x: e.clientX, y: e.clientY, moved: false }; }
+      listen();
     });
 
     function onMove(e) {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pointers.size >= 2) {           // pinch to zoom, and pan with the midpoint
+        if (!pinch) { pinch = mid(); return; }
+        var now = mid();
+        if (pinch.d > 0 && now.d > 0) self.zoomAt(now.x, now.y, now.d / pinch.d);
+        self.tx += now.x - pinch.x;
+        self.ty += now.y - pinch.y;
+        self.apply();
+        pinch = now;
+        return;
+      }
+
       if (!drag) return;
       var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 3) {
-        drag.moved = true;
-        svg.classList.add('is-panning');
-      }
+      if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 3) { drag.moved = true; svg.classList.add('is-panning'); }
       if (!drag.moved) return;
       self.tx += dx; self.ty += dy;
       drag.x = e.clientX; drag.y = e.clientY;
@@ -66,13 +103,14 @@
     }
 
     function onUp(e) {
-      if (!drag) return;
-      var moved = drag.moved;
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (pointers.size > 0) return;
+
+      var moved = drag && drag.moved;
       drag = null;
       svg.classList.remove('is-panning');
-      global.removeEventListener('pointermove', onMove);
-      global.removeEventListener('pointerup', onUp);
-      global.removeEventListener('pointercancel', onUp);
+      unlisten();
       if (!moved && e.target === svg && self.handlers.onBackground) self.handlers.onBackground();
     }
   };

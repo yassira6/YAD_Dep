@@ -18,6 +18,7 @@
     ui: { externals: false, impactedOnly: false, descriptions: true }
   };
   var graph = null;
+  var combos = {};
 
   /* ── small helpers ─────────────────────────────────────────────────── */
 
@@ -137,23 +138,26 @@
     $('workspace').hidden = false;
     $('btn-reset').hidden = false;
 
-    var list = $('code-list');
-    list.innerHTML = '';
-    var codes = Array.from(state.model.nodes.keys()).sort(function (a, b) {
+    state.codeItems = Array.from(state.model.nodes.keys()).sort(function (a, b) {
       return String(a).localeCompare(String(b), undefined, { numeric: true });
-    });
-    codes.forEach(function (code) {
+    }).map(function (code) {
       var n = state.model.nodes.get(code);
-      var o = document.createElement('option');
-      o.value = code;
-      o.label = (n.external ? 'external' : fmt(n.base, 2)) + (n.description ? ' — ' + n.description : '');
-      list.appendChild(o);
+      return {
+        code: code,
+        search: code + ' ' + n.description + ' ' + n.type,
+        codeHtml: esc(code),
+        valueHtml: n.external ? '<em>external</em>' : esc(fmt(n.base, 2)),
+        subHtml: esc(n.description || n.type || '')
+      };
     });
 
     if (!graph) {
       graph = new global.YAD.Graph($('graph'), {
         onSelect: function (code) { selectNode(code); },
-        onActivate: function (code) { $('sim-code').value = code; previewCode(); $('sim-value').focus(); },
+        onActivate: function (code) {
+          if (combos.sim) combos.sim.setValue(code); else $('sim-code').value = code;
+          previewCode(); $('sim-value').focus();
+        },
         onBackground: function () { selectNode(null); }
       });
     }
@@ -253,6 +257,7 @@
     }
     state.overrides.set(code, target);
     $('sim-value').value = '';
+    if (combos.sim) combos.sim.setValue(code);
     recompute();
     var impacted = state.result.impacted.length;
     toast(code + ' → ' + fmt(target) + '  ·  ' + impacted + ' code' + (impacted === 1 ? '' : 's') + ' affected');
@@ -542,7 +547,12 @@
 
     card.querySelector('.nc-close').addEventListener('click', function () { selectNode(null); });
     card.querySelector('[data-sim]').addEventListener('click', function () {
-      $('sim-code').value = code; previewCode(); $('sim-value').focus();
+      if (combos.sim) combos.sim.setValue(code); else $('sim-code').value = code;
+      previewCode(); $('sim-value').focus();
+      if (global.innerWidth <= 900) {
+        var side = document.querySelector('.sidebar');
+        if (side && side.scrollIntoView) side.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     });
     card.querySelectorAll('.nc-list li[data-code]').forEach(function (li) {
       li.addEventListener('click', function () {
@@ -550,6 +560,46 @@
         selectNode(c); graph.centreOn(c, Math.max(graph.k, 0.9));
       });
     });
+  }
+
+  function applyGraphSearch(text) {
+    var q = String(text || '').trim().toLowerCase();
+    state.hits = new Set();
+    if (q && state.model) {
+      state.model.nodes.forEach(function (n, code) {
+        if ((code + ' ' + n.description + ' ' + n.type).toLowerCase().indexOf(q) !== -1) state.hits.add(code);
+      });
+    }
+    renderGraph();
+  }
+
+  /* Bring a code into view: reveal it if a filter is hiding it, select it so its
+     dependencies stay lit, and centre the graph on it. */
+  function focusCode(code) {
+    if (!state.model || !state.model.nodes.has(code)) return;
+    var n = state.model.nodes.get(code);
+    if (n.external && !state.ui.externals) {
+      state.ui.externals = true;
+      $('opt-externals').checked = true;
+    }
+    if (state.ui.impactedOnly) {
+      var row = state.result && state.result.byCode[code];
+      if (!row || (!row.changed && !row.overridden)) {
+        state.ui.impactedOnly = false;
+        $('opt-impacted').checked = false;
+      }
+    }
+    state.hits = new Set([code]);
+    showTab('pane-graph');
+    selectNode(code);
+    if (graph) {
+      if (!graph.layout) graph.fit();
+      graph.centreOn(code, Math.max(graph.k, 0.95));
+    }
+    if (global.innerWidth <= 900) {
+      var wrap = document.querySelector('.graph-wrap');
+      if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   }
 
   /* ── tabs ──────────────────────────────────────────────────────────── */
@@ -621,8 +671,29 @@
     });
 
     $('btn-add-change').addEventListener('click', addChange);
-    $('sim-code').addEventListener('input', previewCode);
-    $('sim-code').addEventListener('change', previewCode);
+
+    var items = function () { return state.codeItems || []; };
+
+    /* Simulator picker: choosing a code previews it and moves on to the amount. */
+    combos.sim = new global.YAD.Combobox($('sim-code'), {
+      items: items,
+      onInput: previewCode,
+      onChoose: function (code) {
+        previewCode();
+        if (state.model && state.model.nodes.has(code)) {
+          selectNode(code);
+          if (graph && graph.layout) graph.centreOn(code, Math.max(graph.k, 0.85));
+        }
+        $('sim-value').focus();
+      }
+    });
+
+    /* Graph picker: typing highlights matches, choosing one focuses it. */
+    combos.find = new global.YAD.Combobox($('graph-search'), {
+      items: items,
+      onInput: applyGraphSearch,
+      onChoose: focusCode
+    });
     $('sim-value').addEventListener('keydown', function (e) { if (e.key === 'Enter') addChange(); });
     $('btn-clear-scenario').addEventListener('click', function () {
       if (!state.overrides.size) return;
@@ -641,17 +712,6 @@
     $('btn-zoom-in').addEventListener('click', function () { graph && graph.zoom(1.25); });
     $('btn-zoom-out').addEventListener('click', function () { graph && graph.zoom(0.8); });
 
-    $('graph-search').addEventListener('input', function (e) {
-      var q = e.target.value.trim().toLowerCase();
-      state.hits = new Set();
-      if (q && state.model) {
-        state.model.nodes.forEach(function (n, code) {
-          if ((code + ' ' + n.description + ' ' + n.type).toLowerCase().indexOf(q) !== -1) state.hits.add(code);
-        });
-      }
-      renderGraph();
-      if (state.hits.size === 1 && graph) graph.centreOn(Array.from(state.hits)[0], Math.max(graph.k, 0.9));
-    });
     $('formula-search').addEventListener('input', renderFormulas);
     $('data-search').addEventListener('input', renderData);
 

@@ -101,13 +101,20 @@ it to the scenario) cuts the loop and makes the surrounding results exact again.
 
 ## What you can do
 
+* **Find a code** — a searchable dropdown in the graph toolbar lists every code
+  with its value and description, matches on code *or* description, and focuses
+  the one you pick: it is selected, centred, and revealed even if a filter was
+  hiding it.
 * **Graph** — layered left-to-right (dependencies feed the codes to their right),
-  with pan, zoom, search, and per-node detail. Green and red show the direction
+  with pan, zoom (wheel, buttons, or pinch on touch), and per-node detail. Green and red show the direction
   of change, blue traces the live propagation path, dashed links are subtracted
   terms, and amber marks circular groups. External codes are hidden by default;
   the toolbar checkbox brings them in.
-* **Scenario** — stack several changes at once, each as *set to*, *adjust by*, or
-  *adjust by %*. Click any node and *Simulate this code* to target it.
+* **Scenario** — pick a code from the same searchable dropdown, then stack
+  several changes at once, each as *set to*, *adjust by*, or *adjust by %*.
+  Choosing a code also highlights it in the graph, so you can see what it feeds
+  before committing to a number. Click any node and *Simulate this code* to
+  target it.
 * **Impact** — every affected code with baseline, simulated value, change,
   % change and a magnitude bar. Sortable; click a row to centre that code.
 * **Formulas** — each formula next to its declared value, what the formula
@@ -126,11 +133,21 @@ assets/css/style.css    styling, light and dark themes
 assets/js/xlsx-lite.js  self-contained .xlsx reader (ZIP + XML, no dependencies)
 assets/js/parse.js      file reading, header matching, CSV parsing
 assets/js/engine.js     model building, formula evaluation, scenario solving
-assets/js/graph.js      layered SVG graph with pan/zoom
+assets/js/graph.js      layered SVG graph with pan/zoom/pinch
+assets/js/combobox.js   searchable code picker used by both dropdowns
 assets/js/app.js        UI wiring
 assets/js/sample.js     embedded demo dataset
 sample-data/            the same demo data as CSV files
 ```
+
+## On phones and tablets
+
+The layout stacks into a single column — controls first, then the graph, then
+the numbers — and the page scrolls normally. The graph keeps a workable height
+of its own (about 60% of the viewport, more in landscape) and responds to drag
+and pinch-to-zoom. The code pickers are built as custom dropdowns rather than a
+native `datalist`, which mobile browsers handle inconsistently, and their rows
+are sized for touch.
 
 ## Browser support and privacy
 

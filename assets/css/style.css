@@ -277,9 +277,81 @@ main { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
          pointer-events:none; transition:opacity .2s, transform .2s; z-index:50; max-width:80vw; }
 .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 
+/* ── searchable dropdown ────────────────────────────────────────────── */
+.combo { position:relative; display:block; }
+.graph-toolbar .combo { display:inline-block; min-width:190px; flex:1 1 190px; max-width:280px; }
+.combo > input { width:100%; padding-right:1.9em; }
+.combo-clear { position:absolute; top:50%; right:.35em; transform:translateY(-50%);
+               border:none; background:transparent; color:var(--text-faint); cursor:pointer;
+               font-size:16px; line-height:1; padding:.15em .3em; border-radius:4px; }
+.combo-clear:hover { color:var(--down); background:var(--surface-2); }
+.combo-list {
+  position:fixed; z-index:60; margin:0; padding:.25rem; list-style:none; overflow-y:auto;
+  background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--radius-sm);
+  box-shadow:var(--shadow); -webkit-overflow-scrolling:touch;
+}
+.combo-list li[data-index] {
+  display:grid; grid-template-columns:1fr auto; gap:0 .6rem; align-items:baseline;
+  padding:.4rem .5rem; border-radius:var(--radius-sm); cursor:pointer;
+}
+.combo-list li[data-index]:hover, .combo-list li.is-active { background:var(--accent-soft); }
+.combo-code { font-family:var(--mono); font-weight:700; font-size:13px; color:var(--text); }
+.combo-val  { font-family:var(--mono); font-size:12px; color:var(--text-dim); text-align:right; }
+.combo-val em { font-style:normal; color:var(--text-faint); }
+.combo-sub  { grid-column:1 / -1; font-size:11.5px; color:var(--text-dim);
+              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.combo-empty { padding:.5rem .55rem; font-size:12.5px; color:var(--text-faint); }
+
+/* ── narrow screens ─────────────────────────────────────────────────── */
 @media (max-width:900px) {
-  .workspace { grid-template-columns:1fr; }
-  .sidebar { border-right:none; border-bottom:1px solid var(--line); max-height:none; }
+  /* The desktop layout pins everything to the viewport height, which squeezes
+     the graph down to a sliver on a phone. Let the page scroll instead and give
+     the graph a height of its own. */
+  body { height:auto; min-height:100%; }
+  main { flex:0 0 auto; }
+  /* Stack in reading order — controls, then the graph, then the numbers.
+     display:contents lifts the sidebar cards into the same flex flow as the
+     tab panes so the graph can sit between them. */
+  .workspace { display:flex; flex-direction:column; }
+  .sidebar { display:contents; }
+  .sidebar > .card { margin:.7rem .7rem 0; }
+  #sim-card { order:1; }
+  .content { order:2; min-width:0; margin-top:.7rem;
+             border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  #impact-summary-card { order:3; }
+  #model-card { order:4; margin-bottom:.9rem; }
+  .pane { min-height:0; }
+  .graph-wrap { height:62vh; min-height:340px; }
+  .table-wrap { max-height:none; overflow:visible; }
+  .pane:not(.is-active) { display:none; }
   .drop-grid { grid-template-columns:1fr; }
-  .node-card { position:static; width:auto; margin:.6rem; max-height:none; }
+  .node-card { position:static; width:auto; max-height:none; margin:.6rem; }
+  .graph-legend { max-width:none; left:8px; right:8px; bottom:8px; font-size:11px; gap:.35rem .7rem; }
+  .loader { padding:1.5rem 1rem 2rem; }
+  .loader-intro h2 { font-size:20px; }
+  .combo-list { max-height:50vh; }
+  .combo-list li[data-index] { padding:.6rem .55rem; }   /* comfortable touch target */
+}
+
+@media (max-width:640px) {
+  .topbar { padding:.6rem .8rem; gap:.6rem; flex-wrap:wrap; }
+  .top-actions { gap:.4rem; }
+  .top-actions .btn { padding:.45em .7em; font-size:13px; }
+  .brand-text p { display:none; }
+  .graph-toolbar, .pane-head { padding:.55rem .7rem; gap:.5rem; }
+  .graph-toolbar .combo { max-width:none; flex:1 1 100%; }
+  .graph-toolbar .spacer { display:none; }
+  .graph-legend { display:none; }              /* the colours are explained in the node card */
+  .sidebar, .issue-list { padding:.7rem; }
+  .tabs { padding:0 .5rem; }
+  .tab { padding:.7rem .6rem; font-size:13.5px; }
+  .grid th, .grid td { padding:.45rem .55rem; }
+  .grid td.wide { min-width:180px; }
+  .stat-grid { gap:.45rem; }
+  .field-row { grid-template-columns:1fr; gap:0; }
+  .graph-wrap { height:58vh; min-height:300px; }
+}
+
+@media (max-width:900px) and (orientation:landscape) {
+  .graph-wrap { height:80vh; }
 }

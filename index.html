@@ -98,12 +98,11 @@
   <section id="workspace" class="workspace" hidden>
 
     <aside class="sidebar">
-      <div class="card">
+      <div class="card" id="sim-card">
         <h3 class="card-title">Simulate a change</h3>
         <label class="field">
           <span>Code</span>
-          <input list="code-list" id="sim-code" placeholder="Search or pick a code" autocomplete="off">
-          <datalist id="code-list"></datalist>
+          <input id="sim-code" placeholder="Search codes…" autocomplete="off">
         </label>
         <p class="code-preview" id="sim-preview">Pick a code to see its current value.</p>
 
@@ -141,7 +140,7 @@
         <button type="button" class="btn btn-block" id="btn-export">Export results (CSV)</button>
       </div>
 
-      <div class="card">
+      <div class="card" id="model-card">
         <h3 class="card-title">Model</h3>
         <div class="stat-grid" id="model-stats"></div>
       </div>
@@ -159,7 +158,7 @@
       <!-- Graph -->
       <div class="pane is-active" id="pane-graph">
         <div class="graph-toolbar">
-          <input type="search" id="graph-search" class="input-sm" placeholder="Find a code…" autocomplete="off">
+          <input id="graph-search" class="input-sm" placeholder="Find a code and focus it…" autocomplete="off">
           <label class="check"><input type="checkbox" id="opt-externals"> <span id="opt-externals-label">External codes</span></label>
           <label class="check"><input type="checkbox" id="opt-impacted"> Impacted only</label>
           <label class="check"><input type="checkbox" id="opt-labels" checked> Descriptions</label>
@@ -220,6 +219,7 @@
 <script src="assets/js/parse.js"></script>
 <script src="assets/js/engine.js"></script>
 <script src="assets/js/graph.js"></script>
+<script src="assets/js/combobox.js"></script>
 <script src="assets/js/sample.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
