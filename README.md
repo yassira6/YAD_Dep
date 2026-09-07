@@ -44,11 +44,18 @@ upload — the app says so and keeps them in memory for the session.
 
 ## The home screen
 
-Click the logo, or the **Home** button in the header, to return to the landing
-page — the same instructions-and-upload screen you see on a first visit. Once
-you have datasets loaded, they're listed there too, as a grid of cards: the one
-marked **Currently open** is the one **Back to workspace** returns you to;
-click any other card to jump straight to its view instead.
+The home screen is the landing page — it's what you see on a first visit, and
+what you land back on every time the page reloads, even with datasets already
+saved from a previous visit. Nothing is auto-opened for you: your datasets are
+listed there as a grid of cards, one click away, but reaching them is always
+a deliberate choice.
+
+Click the logo, or the **Home** button in the header, to return there at any
+point. Once you've opened a dataset, its card is marked **Currently open**,
+and **Back to workspace** returns you to it directly. Both appear only once
+something is actually open in the current visit — on a fresh load there's
+nothing to go "back" to yet, so you pick a card (or start a new upload) to
+begin.
 
 Going home and coming straight back to the dataset you left doesn't lose your
 place — the app only rebuilds the model when you actually switch to a

@@ -147,9 +147,12 @@
     box.hidden = list.length === 0;
     if (!list.length) { grid.innerHTML = ''; return; }
 
-    var activeId = DS.activeId();
     grid.innerHTML = list.map(function (d) {
-      var current = d.id === activeId;
+      // state.currentDatasetId (not DS.activeId()) so the badge only marks a
+      // dataset actually open in this page load, not just the one that was
+      // active when it was last saved — nothing is "currently open" yet on a
+      // fresh visit, since the landing page never auto-opens a workspace.
+      var current = d.id === state.currentDatasetId;
       return '<button type="button" class="dataset-card' + (current ? ' is-current' : '') +
              '" data-id="' + esc(d.id) + '">' +
         (current ? '<span class="dc-badge">Currently open</span>' : '') +
@@ -208,7 +211,9 @@
     $('workspace').hidden = true;
     $('loader').hidden = false;
     $('btn-home').hidden = true;
-    $('btn-loader-cancel').hidden = DS.count() === 0;
+    // shown only once a dataset has actually been opened in this page load —
+    // not just because one was saved from an earlier visit
+    $('btn-loader-cancel').hidden = !state.currentDatasetId;
     renderDatasetBar();
     $('dataset-bar').hidden = true;   // the home screen's own dataset cards replace it here
     ['dz-values', 'dz-deps'].forEach(function (id) {
@@ -243,6 +248,10 @@
       if (!yes) return;
       var name = d.name;
       DS.remove(d.id);
+      // the in-memory model belonged to the dataset just deleted — there is
+      // no longer a real workspace behind it, so "Back to workspace" must
+      // not offer to return to it
+      if (state.currentDatasetId === d.id) { state.currentDatasetId = null; state.model = null; }
       if (DS.count()) openActive(); else showLoader();
       toast('Removed “' + name + '”.');
     });
@@ -1332,8 +1341,13 @@
       else if (state.selected) selectNode(null);
     });
 
+    /* The landing page is the home screen, every time — a reload never jumps
+       straight back into a workspace, even when datasets were saved from a
+       previous visit. showLoader() renders the dataset picker itself, so
+       anything you had is one click away, but the first thing you see is
+       always instructions-and-datasets, not wherever you last left off. */
     if (DS.load()) {
-      openActive();
+      showLoader();
       if (!DS.persisted()) toast('Datasets could not be saved in this browser — they will be lost on reload.', 5000);
     } else {
       renderDatasetBar();
