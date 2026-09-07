@@ -42,6 +42,18 @@ the whole set is saved in `localStorage`, so a reload picks up where you left
 off. If the browser refuses to store them — private mode, or a very large
 upload — the app says so and keeps them in memory for the session.
 
+## The home screen
+
+Click the logo, or the **Home** button in the header, to return to the landing
+page — the same instructions-and-upload screen you see on a first visit. Once
+you have datasets loaded, they're listed there too, as a grid of cards: the one
+marked **Currently open** is the one **Back to workspace** returns you to;
+click any other card to jump straight to its view instead.
+
+Going home and coming straight back to the dataset you left doesn't lose your
+place — the app only rebuilds the model when you actually switch to a
+*different* dataset, so an in-progress scenario survives a quick look around.
+
 ## The two files
 
 Accepted formats: `.xlsx`, `.xlsm`, `.csv`, `.tsv` (and `.xls` where the optional

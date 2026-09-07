@@ -147,8 +147,12 @@
     box.hidden = list.length === 0;
     if (!list.length) { grid.innerHTML = ''; return; }
 
+    var activeId = DS.activeId();
     grid.innerHTML = list.map(function (d) {
-      return '<button type="button" class="dataset-card" data-id="' + esc(d.id) + '">' +
+      var current = d.id === activeId;
+      return '<button type="button" class="dataset-card' + (current ? ' is-current' : '') +
+             '" data-id="' + esc(d.id) + '">' +
+        (current ? '<span class="dc-badge">Currently open</span>' : '') +
         '<span class="dc-name">' + esc(d.name) + '</span>' +
         '<span class="dc-meta">' + d.values.length + ' codes · ' + d.deps.length + ' dependency rows</span>' +
       '</button>';
@@ -161,16 +165,31 @@
     });
   }
 
-  /* Build and show whichever dataset is active. */
+  /* Build and show whichever dataset is active. showLoader() never tears the
+     model down — it only hides the workspace — so returning to the dataset
+     already in memory is just a visibility flip, and any in-progress
+     scenario survives a trip to the home screen. Only a genuine switch to a
+     different dataset rebuilds and resets the transient view state. */
   function openActive() {
     var d = DS.active();
     if (!d) { showLoader(); return; }
+
+    if (state.model && state.currentDatasetId === d.id) {
+      $('loader').hidden = true;
+      $('workspace').hidden = false;
+      $('btn-home').hidden = false;
+      renderDatasetBar();
+      if (graph && graph.layout) setTimeout(function () { graph.fit(); }, 30);
+      return;
+    }
+
     try {
       state.model = E.buildModel(d.values, d.deps);
     } catch (err) {
       toast('This dataset could not be built: ' + err.message);
       return;
     }
+    state.currentDatasetId = d.id;
     state.overrides.clear();
     state.selected = null;
     state.hits = new Set();
