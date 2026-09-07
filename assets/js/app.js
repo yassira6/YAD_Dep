@@ -128,13 +128,37 @@
     var sel = $('dataset-select');
     var list = DS.all();
     bar.hidden = list.length === 0;
-    if (!list.length) return;
+    if (list.length) {
+      sel.innerHTML = list.map(function (d) {
+        return '<option value="' + esc(d.id) + '"' + (d.id === DS.activeId() ? ' selected' : '') + '>' +
+               esc(d.name) + ' · ' + d.values.length + ' codes</option>';
+      }).join('');
+      $('btn-ds-remove').disabled = false;
+    }
+    renderDatasetHome();
+  }
 
-    sel.innerHTML = list.map(function (d) {
-      return '<option value="' + esc(d.id) + '"' + (d.id === DS.activeId() ? ' selected' : '') + '>' +
-             esc(d.name) + ' · ' + d.values.length + ' codes</option>';
+  /* The home screen's own picker — lets you jump straight into any
+     previously uploaded dataset without touching the header switcher. */
+  function renderDatasetHome() {
+    var box = $('dataset-home');
+    var grid = $('dataset-grid');
+    var list = DS.all();
+    box.hidden = list.length === 0;
+    if (!list.length) { grid.innerHTML = ''; return; }
+
+    grid.innerHTML = list.map(function (d) {
+      return '<button type="button" class="dataset-card" data-id="' + esc(d.id) + '">' +
+        '<span class="dc-name">' + esc(d.name) + '</span>' +
+        '<span class="dc-meta">' + d.values.length + ' codes · ' + d.deps.length + ' dependency rows</span>' +
+      '</button>';
     }).join('');
-    $('btn-ds-remove').disabled = false;
+    grid.querySelectorAll('.dataset-card').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        DS.setActive(btn.getAttribute('data-id'));
+        openActive();
+      });
+    });
   }
 
   /* Build and show whichever dataset is active. */
@@ -156,6 +180,7 @@
 
     $('loader').hidden = true;
     $('workspace').hidden = false;
+    $('btn-home').hidden = false;
     renderDatasetBar();
     afterModelBuilt();
   }
@@ -163,8 +188,10 @@
   function showLoader() {
     $('workspace').hidden = true;
     $('loader').hidden = false;
+    $('btn-home').hidden = true;
     $('btn-loader-cancel').hidden = DS.count() === 0;
     renderDatasetBar();
+    $('dataset-bar').hidden = true;   // the home screen's own dataset cards replace it here
     ['dz-values', 'dz-deps'].forEach(function (id) {
       var z = $(id);
       z.classList.remove('is-ready', 'is-bad');
@@ -1176,6 +1203,8 @@
     $('btn-loader-cancel').addEventListener('click', function () {
       if (DS.count()) openActive();
     });
+    $('btn-home-logo').addEventListener('click', showLoader);
+    $('btn-home').addEventListener('click', showLoader);
 
     $('dataset-select').addEventListener('change', function (e) {
       if (DS.setActive(e.target.value)) openActive();
