@@ -83,7 +83,12 @@ code { font-family:var(--mono); font-size:.86em; background:var(--surface-2);
   padding:.7rem 1.25rem; background:var(--surface);
   border-bottom:1px solid var(--line); flex:0 0 auto;
 }
-.brand { display:flex; align-items:center; gap:.7rem; }
+.brand {
+  display:flex; align-items:center; gap:.7rem;
+  font:inherit; text-align:left; background:none; border:none; padding:.15rem .2rem; margin:-.15rem -.2rem;
+  border-radius:var(--radius-sm); cursor:pointer; transition:background .15s;
+}
+.brand:hover, .brand:focus-visible { background:var(--surface-2); outline:none; }
 .logo { width:30px; height:30px; }
 .logo circle { fill:var(--accent); }
 .logo path { stroke:var(--text-faint); stroke-width:1.6; fill:none; }
@@ -117,6 +122,18 @@ main { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
              padding-top:.7rem; white-space:pre-line; }
 .dropzone.is-ready .dz-status { color:var(--up); font-weight:550; }
 .dropzone.is-bad .dz-status { color:var(--down); font-weight:550; }
+.dataset-home { margin-bottom:1.75rem; }
+.dataset-home h3 { font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+                   color:var(--text-dim); margin-bottom:.7rem; }
+.dataset-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:.7rem; }
+.dataset-card {
+  display:flex; flex-direction:column; gap:.3rem; text-align:left; font:inherit; color:var(--text);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:.8rem .9rem; cursor:pointer; transition:border-color .15s, background .15s;
+}
+.dataset-card:hover, .dataset-card:focus-visible { border-color:var(--accent); background:var(--accent-soft); outline:none; }
+.dataset-card .dc-name { font-weight:650; }
+.dataset-card .dc-meta { font-size:12px; color:var(--text-dim); }
 .loader-foot { text-align:center; margin:1.75rem 0 1rem; }
 .loader-foot .muted, #build-hint { font-size:12.5px; color:var(--text-dim); margin-top:.6rem; }
 .spec { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:.85rem 1.1rem; }
